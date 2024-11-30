@@ -1,3 +1,4 @@
+#include "read_db.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -7,7 +8,7 @@
 #include <stdexcept>
 
 // Define a tuple type for a row
-using Row = std::tuple<int, std::string, std::string, std::string, std::string, int, std::string, double, std::string>;  
+//using Row = std::tuple<int, std::string, std::string, std::string, std::string, int, std::string, double, std::string>;  
 
 // Function to parse a line from the .tbl file into a Row tuple
 Row parseRow(const std::string& line) {
@@ -69,16 +70,4 @@ void displayDatabase(const std::vector<Row>& database) {
                   << ", Retail Price: " << std::get<7>(row)
                   << ", Comment: " << std::get<8>(row) << std::endl;
     }
-}
-
-int main() {
-    // Load the data from the .tbl file into the database
-    std::string filename = "part.tbl";
-    std::vector<Row> database = loadDatabase(filename);
-
-    // Display the database contents
-    std::cout << "Database contents:" << std::endl;
-    displayDatabase(database);
-
-    return 0;
 }

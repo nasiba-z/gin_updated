@@ -1,12 +1,4 @@
-#include <iostream>
-#include <vector>
-#include <string>
-#include <set>
-#include <algorithm>
-#include <cctype>
-
-// Type alias for trigrams
-using Trigram = std::string;
+#include "trigram_generator.h"
 
 // Function to clean input string (keep only alphanumeric characters)
 std::string cleanString(const std::string& input) {
@@ -18,7 +10,7 @@ std::string cleanString(const std::string& input) {
 }
 
 // Function to pad and generate trigrams from a string
-std::set<Trigram> generateTrgm(const std::string& input) {
+std::set<Trigram> trigram_generator(const std::string& input) {
     std::set<Trigram> trigrams;
 
     // Add padding to the string (two spaces before and one after)
@@ -39,32 +31,4 @@ void displayTrigrams(const std::set<Trigram>& trigrams) {
         std::cout << "\"" << trigram << "\" ";
     }
     std::cout << std::endl;
-}
-
-// Test function to verify `generateTrgm`
-void testGenerateTrgm() {
-    std::vector<std::string> testInputs = {
-        "chiffon smoke firebrick cornsilk almond",
-        "azure sienna royal papaya lace",
-        "steel maroon rose spring salmon",
-        ""
-    };
-
-    for (const auto& input : testInputs) {
-        std::cout << "\nInput: \"" << input << "\"" << std::endl;
-
-        // Clean and generate trigrams
-        std::string cleanedInput = cleanString(input);
-        std::set<Trigram> trigrams = generateTrgm(cleanedInput);
-
-        // Display trigrams
-        displayTrigrams(trigrams);
-    }
-}
-
-// Main function
-int main() {
-    std::cout << "Testing Trigram Generation:\n";
-    testGenerateTrgm();
-    return 0;
 }
