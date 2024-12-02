@@ -1,53 +1,47 @@
 #include <iostream>
 #include <vector>
-#include <set>
 #include <string>
-#include <functional> 
-#include <memory>    
-#include "trigram_generator.h"
+#include <set>
+#include <memory> // For smart pointers
+#include <functional> // For hash function
+#include "trigram_generator.h" 
+#include "gin_extract_value_trgm.h"
 
+// Type definitions to match PostgreSQL structures
+using Datum = int32_t; // Equivalent to PostgreSQL Datum for storing integers
+using TRGM = std::set<std::string>; // A set of unique trigrams
+using TrigramArray = std::vector<Datum>; // Container for trigram integers
 
-// Simulate PostgreSQL's Int32GetDatum with int32_t
-using Datum = int32_t;
+// Function to simulate gin_extract_value_trgm
+std::unique_ptr<TrigramArray> gin_extract_value_trgm(const std::string& input, int32_t* nentries) {
+    // Initialize number of trigrams to 0
+    *nentries = 0;
 
-// Function to simulate PostgreSQL's trgm2int
-int32_t trgm2int(const std::string& trigram) {
-    // Use std::hash for simplicity (convert string to unique integer)
-    return static_cast<int32_t>(std::hash<std::string>{}(trigram) & 0x7FFFFFFF); // Ensure non-negative value
-}
+    // Generate trigrams from the input string
+    TRGM trigrams = trigram_generator(input);
 
-// C++ equivalent of gin_extract_value_trgm
-std::unique_ptr<std::vector<Datum>> gin_extract_value_trgm(const std::string& input) {
-    std::set<std::string> trigrams = trigram_generator(input);  // Call the trigram generator
-    auto entries = std::make_unique<std::vector<Datum>>();      
+    // Determine the number of trigrams
+    int32_t trglen = trigrams.size();
 
-    for (const auto& trigram : trigrams) {
-        entries->push_back(trgm2int(trigram)); // Convert trigram to int and store in entries
+    // If no trigrams, return an empty result
+    if (trglen == 0) {
+        return std::make_unique<TrigramArray>();
     }
 
-    return entries; // Return pointer to vector of Datum
-}
+    // Allocate space for the entries (trigram integers)
+    auto entries = std::make_unique<TrigramArray>();// Unique pointer to store the trigram integers vector
+    entries->reserve(trglen);//reserving memory
 
-// Function to display the extracted trigrams (as integers)
-void displayTrigrams(const std::vector<Datum>& entries) {
-    std::cout << "Extracted Trigrams (as integers):\n";
-    for (const auto& entry : entries) {
-        std::cout << entry << " ";
+    // Convert each trigram to an integer representation
+    for (auto it = trigrams.begin(); it != trigrams.end(); ++it) {
+        // Convert trigram to integer using hash
+        int32_t item = static_cast<int32_t>(std::hash<std::string>{}(*it) & 0x7FFFFFFF); // Ensure non-negative
+        entries->push_back(item); // Add integer representation to the entries
     }
-    std::cout << std::endl;
+
+    // Update the number of entries
+    *nentries = trglen;
+
+    // Smart pointer pointing to the array of trigram integers
+    return entries;
 }
-
-// Main function for testing
-// int main() {
-//     std::string testInput = "Hello World";
-
-//     std::cout << "Input: " << testInput << std::endl;
-
-//     // Call gin_extract_value_trgm and get the extracted trigrams
-//     auto extractedTrigrams = gin_extract_value_trgm(testInput);
-
-//     // Display the trigrams (as integers)
-//     displayTrigrams(*extractedTrigrams);
-
-//     return 0;
-// }

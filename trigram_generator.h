@@ -20,4 +20,4 @@ std::set<Trigram> trigram_generator(const std::string& input);
 // Function to display trigrams
 void displayTrigrams(const std::set<Trigram>& trigrams);
 
-#endif // TRIGRAM_GENERATOR_H
+#endif 

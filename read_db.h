@@ -12,7 +12,7 @@ using Row = std::tuple<int, std::string, std::string, std::string, std::string, 
 Row parseRow(const std::string& line);
 
 // Function to load data from the .tbl file into a vector of Row tuples
-std::vector<Row> loadDatabase(const std::string& filename);
+std::vector<Row> read_db(const std::string& filename);
 
 // Function to display the contents of the database
 void displayDatabase(const std::vector<Row>& database);

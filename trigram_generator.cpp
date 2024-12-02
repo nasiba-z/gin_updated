@@ -17,7 +17,7 @@ std::set<Trigram> trigram_generator(const std::string& input) {
     std::string padded = "  " + input + "  ";
 
     // Generate trigrams
-    for (size_t i = 0; i <= padded.size() - 3; ++i) {
+    for (size_t i = 0; i <= padded.size()-3; ++i) {
         trigrams.insert(padded.substr(i, 3));
     }
 
