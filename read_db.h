@@ -6,15 +6,18 @@
 #include <tuple>
 
 // Define a type alias for a database row
-using Row = std::tuple<int, std::string, std::string, std::string, std::string, int, std::string, double, std::string>;
-
-// Function to parse a line from a .tbl file into a Row tuple
-Row parseRow(const std::string& line);
+using Row = std::tuple<
+    int,              // p_partkey
+    std::string,      // p_name
+    std::string,      // p_mfgr
+    std::string,      // p_brand
+    std::string,      // p_type
+    int,              // p_size
+    std::string,      // p_container
+    double,           // p_retailprice
+    std::string       // p_comment
+>;
 
 // Function to load data from the .tbl file into a vector of Row tuples
 std::vector<Row> read_db(const std::string& filename);
-
-// Function to display the contents of the database
-void displayDatabase(const std::vector<Row>& database);
-
 #endif // READ_DB_H
