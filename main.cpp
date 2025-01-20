@@ -72,27 +72,59 @@ int main() {
         table.push_back({id, data});
     }
 
+
+    std::string searchPattern = "choc";
+    int32_t nentries = 0; // Number of trigrams generated
+    auto entries = gin_extract_value_trgm(searchPattern, &nentries);
+
+    if (!entries || nentries == 0) {
+        std::cerr << "No trigrams generated for the search pattern: " << searchPattern << "\n";
+        return 1;
+    }
+    
+
+    
+
+
+
     // Initialize GIN index state
     GinState ginstate{true, 8192};
 
+    
     try {
         // Build GIN index
         std::vector<IndexTuple> ginIndex = ginBuild(table, ginstate);
 
-        // Output the GIN index
+        // Process and output GIN index
         std::cout << "GIN Index built successfully. Output:\n";
-        for (const auto& tuple : ginIndex) {
-            std::cout << "Key: " << tuple.datums[0] << "\n";
-            std::cout << "Posting List: ";
-            for (size_t i = tuple.postingOffset; i < tuple.postingOffset + tuple.postingSize; ++i) {
-                std::cout << tuple.datums[i] << " ";
+
+        for (const auto& entry : *entries) {
+            bool found = false;
+            for (const auto& tuple : ginIndex) {
+                // Convert key in tuple to an integer for comparison
+                int tupleKey = std::stoi(tuple.datums[0]);
+
+                if (tupleKey == entry) {
+                    found = true;
+                    std::cout << "Matched Key: " << tupleKey << "\n";
+                    std::cout << "Posting List: ";
+
+                    // Process and print the posting list
+                    for (size_t i = tuple.postingOffset; i < tuple.postingOffset + tuple.postingSize; ++i) {
+                        std::cout << tuple.datums[i] << " ";
+                    }
+                    std::cout << "\n";
+                }
             }
-            std::cout << "\n";
+
+            if (!found) {
+                std::cout << "No match found for entry: " << entry << "\n";
+            }
         }
     } catch (const std::exception& e) {
         std::cerr << "Error building GIN index: " << e.what() << "\n";
         return 1;
     }
-
+    
     return 0;
 }

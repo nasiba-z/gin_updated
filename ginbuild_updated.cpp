@@ -5,7 +5,7 @@
 #include <set>
 #include <stdexcept>
 #include "gin_extract_value_trgm.h"
-#include "ginbuild.h"
+#include "ginbuild_updated.h"
 
 
 
@@ -25,14 +25,14 @@ IndexTuple ginFormTupleCpp(const GinState& ginstate, const std::string& key, con
 
     return tuple;
 }
+// GIN index construction with page management
+std::vector<GinPage> ginBuild_updated(const Table& table, const GinState& ginstate) {
+    KeyToPostingList index;         // GIN index map
+    std::vector<GinPage> pages;     // Collection of GIN pages
+    GinPage currentPage;            // Current page being built
 
-std::vector<IndexTuple> ginBuild(const Table& table, const GinState& ginstate) {
-    KeyToPostingList index; // GIN index map
-    std::vector<IndexTuple> tuples; // Resulting GIN tuples
-
-    // Iterate over the table rows
+    // Iterate over the table rows to extract trigrams and build the index map
     for (const auto& row : table) {
-        // Use gin_extract_value_trgm to get trigram integers
         int32_t numTrigrams = 0;
         auto trigramIntegers = gin_extract_value_trgm(row.data, &numTrigrams);
 
@@ -52,15 +52,28 @@ std::vector<IndexTuple> ginBuild(const Table& table, const GinState& ginstate) {
         }
     }
 
-    // Build GIN tuples from the index
+    // Build GIN pages from the index
     for (const auto& pair : index) {
         const std::string& key = pair.first;
         const std::vector<TID>& postingList = pair.second;
 
         IndexTuple tuple = ginFormTupleCpp(ginstate, key, postingList);
-        tuples.push_back(tuple);
+
+        // Check if the current page can accommodate the tuple
+        if (currentPage.getCurrentSize() + tuple.datums.size() * sizeof(std::string) +
+            tuple.postingSize * sizeof(TID) > ginstate.maxItemSize) {
+            // Current page is full, split and create a new page
+            pages.push_back(currentPage); // Save the current page
+            currentPage = GinPage();     // Start a new page
+        }
+
+        currentPage.tuples.push_back(tuple); // Add the tuple to the current page
     }
 
+    // Add the last page if it contains any tuples
+    if (!currentPage.tuples.empty()) {
+        pages.push_back(currentPage);
+    }
 
-    return tuples;
+    return pages;
 }
