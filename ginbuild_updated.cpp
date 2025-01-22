@@ -15,7 +15,14 @@ IndexTuple ginFormTupleCpp(const GinState& ginstate, const std::string& key, con
     tuple.datums.push_back(key);
 
     if (!postingList.empty()) {
-        tuple.addPostingList(postingList);
+        // Convert the std::vector<TID> to GinPostingList
+        GinPostingList ginPostingList;
+        for (const auto& tid : postingList) {
+            ginPostingList.addTID(tid); // Add each TID to the GinPostingList
+        }
+
+        // Add the GinPostingList to the tuple
+        tuple.addPostingList(ginPostingList);
 
         size_t tupleSize = tuple.datums.size() * sizeof(std::string);
         if (tupleSize > ginstate.maxItemSize) {

@@ -35,7 +35,9 @@ std::unique_ptr<TrigramArray> gin_extract_value_trgm(const std::string& input, i
     // Convert each trigram to an integer representation
     for (auto it = trigrams.begin(); it != trigrams.end(); ++it) {
         // Convert trigram to integer using hash
+        std::cout << *it << "\n";
         int32_t item = static_cast<int32_t>(std::hash<std::string>{}(*it) & 0x7FFFFFFF); // Ensure non-negative
+        std::cout << item << "\n";
         entries->push_back(item); // Add integer representation to the entries
     }
 

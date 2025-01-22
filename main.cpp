@@ -6,7 +6,8 @@
 #include "trigram_generator.h"
 #include "read_db.h"
 #include "gin_extract_value_trgm.h"
-#include "ginbuild.h"
+#include "ginbuild_updated.h"
+#include "page_management.h"
 
 // using DatabaseRow = std::tuple<int, std::string, std::string, std::string, std::string, int, std::string, double, std::string>;
 
@@ -72,7 +73,9 @@ int main() {
         table.push_back({id, data});
     }
 
-
+ // explore other search methods just'abc' without any continuation, how does it fit with original like 
+    //in some way it's like %choc%. ' ch'? 'b'? what if no space before choc?
+    // check if number of tuples match, do some exception
     std::string searchPattern = "choc";
     int32_t nentries = 0; // Number of trigrams generated
     auto entries = gin_extract_value_trgm(searchPattern, &nentries);
@@ -93,19 +96,21 @@ int main() {
     
     try {
         // Build GIN index
-        std::vector<IndexTuple> ginIndex = ginBuild(table, ginstate);
+        std::vector<GinPage> ginIndex = ginBuild_updated(table, ginstate);
 
         // Process and output GIN index
         std::cout << "GIN Index built successfully. Output:\n";
 
         for (const auto& entry : *entries) {
-            bool found = false;
-            for (const auto& tuple : ginIndex) {
+        bool found = false;
+        for (const auto& page : ginIndex) {
+            for (const auto& tuple : page.tuples) { // Iterate over the tuples in the page
                 // Convert key in tuple to an integer for comparison
                 int tupleKey = std::stoi(tuple.datums[0]);
 
                 if (tupleKey == entry) {
                     found = true;
+                    std::cout << tupleKey<< "\n";
                     std::cout << "Matched Key: " << tupleKey << "\n";
                     std::cout << "Posting List: ";
 
@@ -116,15 +121,16 @@ int main() {
                     std::cout << "\n";
                 }
             }
-
-            if (!found) {
-                std::cout << "No match found for entry: " << entry << "\n";
-            }
         }
+
+        if (!found) {
+            
+            std::cout << "No match found for entry: " << entry << "\n";
+        }
+    }
     } catch (const std::exception& e) {
         std::cerr << "Error building GIN index: " << e.what() << "\n";
         return 1;
     }
-    
     return 0;
 }

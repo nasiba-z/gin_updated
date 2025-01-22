@@ -26,10 +26,6 @@ struct TID {
         int row = std::stoi(str.substr(commaPos + 1));
         return TID(page, row);
     }
-
-    std::string toString() const {
-        return "TID(" + std::to_string(pageId) + "," + std::to_string(rowId) + ")";
-    }
 };
 
 // Represents the GIN index state
@@ -114,9 +110,8 @@ struct IndexTuple {
         postingSize = list.tids.size();
     }
 
-    // Retrieve the current posting list as a decompressed list of TIDs
-    std::vector<TID> getPostingListAsTIDs() const {
-        return postingList.tids;
+    GinPostingList getPostingList() const {
+        return postingList; // Return the stored posting list
     }
 
     // Get the size of the tuple in bytes

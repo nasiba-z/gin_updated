@@ -7,29 +7,30 @@ GinPage* createPostingTree(const std::vector<TID>& items, size_t maxPageSize, Gi
 
     auto* root = new GinPage();
     size_t currentSize = 0;
-    GinPostingList currentSegment({});
+    GinPostingList currentSegment;
 
     for (const auto& item : items) {
-        currentSegment.tids.push_back(item);
+        currentSegment.addTID(item);  // Add item to the current segment
         currentSize += sizeof(TID);
 
         if (currentSize >= maxPageSize) {
-            root->postingLists.push_back(currentSegment);
-            currentSegment = GinPostingList({});
+            root->addPostingList(currentSegment);  // Add the full segment to the page
+            currentSegment = GinPostingList();    // Start a new segment
             currentSize = 0;
         }
     }
 
     if (!currentSegment.tids.empty()) {
-        root->postingLists.push_back(currentSegment);
+        root->addPostingList(currentSegment); // Add the last segment if not empty
     }
 
     if (stats) {
-        stats->dataPages++;
+        stats->dataPages++; // Update stats for created pages
     }
 
     return root;
 }
+
 
 void insertIntoPostingTree(GinPage* root, const std::vector<TID>& items, size_t maxPageSize) {
     if (!root) {
