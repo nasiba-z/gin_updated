@@ -1,35 +1,6 @@
 #include "tree_management.h"
 
-GinPage* createPostingTree(const std::vector<TID>& items, size_t maxPageSize, GinStatsData* stats) {
-    if (items.empty()) {
-        throw std::invalid_argument("Item list cannot be empty.");
-    }
 
-    auto* root = new GinPage();
-    size_t currentSize = 0;
-    GinPostingList currentSegment;
-
-    for (const auto& item : items) {
-        currentSegment.addTID(item);  // Add item to the current segment
-        currentSize += sizeof(TID);
-
-        if (currentSize >= maxPageSize) {
-            root->addPostingList(currentSegment);  // Add the full segment to the page
-            currentSegment = GinPostingList();    // Start a new segment
-            currentSize = 0;
-        }
-    }
-
-    if (!currentSegment.tids.empty()) {
-        root->addPostingList(currentSegment); // Add the last segment if not empty
-    }
-
-    if (stats) {
-        stats->dataPages++; // Update stats for created pages
-    }
-
-    return root;
-}
 
 
 void insertIntoPostingTree(GinPage* root, const std::vector<TID>& items, size_t maxPageSize) {

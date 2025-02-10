@@ -1,5 +1,6 @@
 {
     "files.associations": {
+        "*.sqlbook": "sql",
         "*.ndjson": "jsonl",
         "*.dbclient-js": "javascript",
         "array": "cpp",
@@ -56,6 +57,7 @@
         "variant": "cpp",
         "set": "cpp",
         "unordered_set": "cpp",
-        "cstring": "cpp"
+        "cstring": "cpp",
+        "map": "cpp"
     }
 }

@@ -18,6 +18,11 @@ using Row = std::tuple<
     std::string       // p_comment
 >;
 
+struct TableRow {
+    int id;
+    std::string data; // We'll use p_name as the data for GIN index building.
+};
+
 // Function to load data from the .tbl file into a vector of Row tuples
 std::vector<Row> read_db(const std::string& filename);
 #endif // READ_DB_H
