@@ -3,83 +3,97 @@
 
 #include <vector>
 #include <unordered_map>
-#include <memory>   
+#include <memory>
 #include <cstdint>
 #include "posting_tree.h"
-#include "gin_posting_list.h"  
-#include "posting_tree.h"
 #include "gin_state.h"
+#include "tid.h"
+using datum = int32_t; 
+class GinIndex {
+public:
+    std::unordered_map<datum, std::vector<TID>> index;
 
+    GinIndex(const GinState& state) : state(state) {}
 
-struct GinIndex {
-    std::unordered_map<std::int32_t, std::vector<GinPostingList*>> index;
-
-    void insert(const std::int32_t& key, const std::vector<TID>& tids) {
-        GinPostingList* plist = createGinPostingList(tids);
-        index[key].push_back(plist);
-    }
-
-    ~GinIndex() {
-        for (auto& kv : index) {
-            for (auto* plist : kv.second) {
-                delete[] reinterpret_cast<unsigned char*>(plist);
-            }
+    // Insert posting data for a key.
+    void insert(datum key, const std::vector<TID>& tids) {
+        auto it = index.find(key);
+        if (it != index.end()) {
+            // Append new TIDs to the existing vector.
+            it->second.insert(it->second.end(), tids.begin(), tids.end());
+        } else {
+            // Create a new posting list.
+            index[key] = tids;
         }
     }
+    GinState state;
 };
 
 
+// In-memory GinPostingList stores TIDs using a std::vector.
+struct GinPostingList {
+    std::vector<TID> tids;
+    GinPostingList() = default;
+    explicit GinPostingList(const std::vector<TID>& inputTIDs)
+        : tids(inputTIDs) { }
+    
+    // Add a TID to the posting list.
+    void addTID(const TID& tid) {
+        tids.push_back(tid);
+    }
+    
+    // Return the number of TIDs.
+    size_t size() const {
+        return tids.size();
+    }
+};
+
+// Forward declaration of PostingTree.
+class PostingTree;
+
+// Custom deleter for GinPostingList.
+struct GinPostingListDeleter {
+    void operator()(GinPostingList* p) const {
+        delete p;
+    }
+};
+
+// IndexTuple represents a tuple in the GIN index.
+// For our in-memory version, the key is stored as an integer (Datum),
+// and the posting list is stored either inline or as a pointer to a PostingTree.
 struct IndexTuple {
-    public:
-        std::vector<std::string> datums; // Data entries (e.g., the key as a string)
-        std::unique_ptr<GinPostingList, GinPostingListDeleter> postingList; // Inline posting list
-        // Instead of a raw GinPage, we now store a pointer to a PostingTree if needed.
-        PostingTree* postingTree = nullptr;
-        size_t postingOffset = 0;
-        size_t postingSize = 0;
+    datum key; // The key (an integer representing a trigram).
     
-        // Default constructor.
-        IndexTuple() = default;
+    // Inline posting list: if the posting list is small enough,
+    // it is stored in this smart pointer.
+    std::unique_ptr<GinPostingList, GinPostingListDeleter> postingList;
     
-        // Copy constructor.
-        IndexTuple(const IndexTuple& other)
-            : datums(other.datums),
-              postingList(other.postingList ? new GinPostingList(*other.postingList) : nullptr),
-              postingTree(other.postingTree), // Shallow copy; for deep copy, you'd need to copy the tree.
-              postingOffset(other.postingOffset),
-              postingSize(other.postingSize) {}
+    // If the inline posting list is too big, a posting tree is used.
+    // This pointer is valid only if postingTree is not nullptr.
+    PostingTree* postingTree;
     
-        // Copy assignment operator.
-        IndexTuple& operator=(const IndexTuple& other) {
-            if (this == &other)
-                return *this;
-            datums = other.datums;
-            postingList.reset(other.postingList ? new GinPostingList(*other.postingList) : nullptr);
-            postingTree = other.postingTree;
-            postingOffset = other.postingOffset;
-            postingSize = other.postingSize;
-            return *this;
-        }
+    // Additional metadata.
+    size_t postingSize;   // Number of TIDs in the posting list.
     
-        // Move constructor and move assignment operator.
-        IndexTuple(IndexTuple&& other) noexcept = default;
-        IndexTuple& operator=(IndexTuple&& other) noexcept = default;
+    // Default constructor.
+    IndexTuple() : key(0), postingTree(nullptr),  postingSize(0) { }
     
-        // Adds an inline posting list to the tuple.
-        void addPostingList(const GinPostingList& plist) {
-            postingList.reset(new GinPostingList(plist));
-        }
+    // Member function to add an inline posting list.
+    void addPostingList(const GinPostingList& plist);
     
-        // Returns the total size of the tuple (for demonstration).
-        size_t getTupleSize() const {
-            size_t size = sizeof(IndexTuple);
-            if (postingList)
-                size += postingList->getSizeInBytes();
-            return size;
-        }
-    };
+    // Member function to compute the size of the tuple in bytes.
+    // (For in-memory use, you can simply simulate this if needed.)
+    size_t getTupleSize() const;
+};
 
-std::vector<IndexTuple> ginFormTuple(const GinIndex& gin, const GinState& state);
+// Form a tuple from a key and its posting list data.
+// If the posting list is too large, a PostingTree is built instead.
+IndexTuple* GinFormTuple(GinState* ginstate,
+                         datum key,
+                         const std::vector<TID>& postingData,
+                         bool errorTooBig);
 
+// Declaration of createGinPostingList: builds an in-memory posting list from postingData.
+GinPostingList* createGinPostingList(const std::vector<TID>& postingData);
 
 #endif // GIN_INDEX_H

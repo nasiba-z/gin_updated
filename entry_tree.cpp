@@ -1,44 +1,16 @@
-#include "tree_management.h"
+#include "entry_tree.h"
 
-
-
-
-void insertIntoPostingTree(GinPage* root, const std::vector<TID>& items, size_t maxPageSize) {
-    if (!root) {
-        throw std::invalid_argument("Root page cannot be null.");
-    }
-
-    GinPage* current = root;
-    while (current->rightLink) {
-        current = current->rightLink;
-    }
-
-    GinPostingList currentSegment({});
-
-    for (const auto& item : items) {
-        currentSegment.tids.push_back(item);
-        size_t segmentSize = currentSegment.tids.size() * sizeof(TID);
-
-        if (segmentSize >= maxPageSize) {
-            if (current->getFreeSpace(maxPageSize) >= segmentSize) {
-                current->postingLists.push_back(currentSegment);
-            } else {
-                auto* newPage = new GinPage();
-                newPage->postingLists.push_back(currentSegment);
-                current->rightLink = newPage;
-                current = newPage;
-            }
-            currentSegment = GinPostingList({});
+// Create an entry tree from a collection of IndexTuple pointers.
+// We assume that each IndexTuple contains at least one key in its datums vector,
+// and we use the first datum as the key for insertion.
+EntryTree* createEntryTreeFromTuples(const std::vector<IndexTuple*>& tuples) {
+    // Choose a minimum degree for the B-tree; for example, t = 3.
+    EntryTree* tree = new EntryTree(3);
+    for (IndexTuple* tuple : tuples) {
+        if (!tuple->datums.empty()) {
+            // Use the first element of datums as the key.
+            tree->insert(tuple->datums[0], tuple);
         }
     }
-
-    if (!currentSegment.tids.empty()) {
-        if (current->getFreeSpace(maxPageSize) >= currentSegment.tids.size() * sizeof(TID)) {
-            current->postingLists.push_back(currentSegment);
-        } else {
-            auto* newPage = new GinPage();
-            newPage->postingLists.push_back(currentSegment);
-            current->rightLink = newPage;
-        }
-    }
+    return tree;
 }
