@@ -7,7 +7,7 @@
 #include <cstdint>
 
 // Constants for posting tree segment sizes, in bytes.
-constexpr size_t GinPostingListSegmentMaxSize   = 8000;
+constexpr size_t GinPostingListSegmentMaxSize   = 80000;
 constexpr size_t GinPostingListSegmentTargetSize = 40000;
 constexpr size_t GinPostingListSegmentMinSize   = 24000;
 
