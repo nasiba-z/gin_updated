@@ -62,7 +62,7 @@ IndexTuple* GinFormTuple(GinState* ginstate,
     size_t plSize = sizeof(GinPostingList) + numTIDs * sizeof(TID);
     
     // Instead of throwing an error, if the inline posting list is too big, we build a PostingTree.
-    if (plSize > ginstate->maxItemSize || postingData.size() > LeafMaxCount) {
+    if (postingData.size() > LeafMaxCount) {
         // Build a PostingTree using bulk-loading.
         PostingTree* tree = new PostingTree();
         // We assume postingData is already sorted.

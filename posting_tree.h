@@ -7,9 +7,9 @@
 #include <cstdint>
 
 // Constants for posting tree segment sizes, in bytes.
-constexpr size_t GinPostingListSegmentMaxSize   = 60;
-constexpr size_t GinPostingListSegmentTargetSize = 40;
-constexpr size_t GinPostingListSegmentMinSize   = 30;
+constexpr size_t GinPostingListSegmentMaxSize   = 8000;
+constexpr size_t GinPostingListSegmentTargetSize = 40000;
+constexpr size_t GinPostingListSegmentMinSize   = 24000;
 
 // Derive target, max, and min TID counts per leaf node based on TID size.
 constexpr size_t LeafTargetCount = GinPostingListSegmentTargetSize / sizeof(TID);

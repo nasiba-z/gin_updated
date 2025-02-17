@@ -2,6 +2,7 @@
 #include <vector>
 #include <tuple>
 #include <unordered_map>
+#include <map>
 #include <algorithm>
 #include "read_db.h"               // Contains read_db() function.
 #include "gin_index.h"             // Contains GinIndex, GinFormTuple, IndexTuple, etc.
@@ -12,7 +13,6 @@
 using namespace std;
 
 int main() {
-    try {
     // 1. Read the database rows from file "part.tbl".
     vector<Row> database = read_db("part.tbl");
 
@@ -25,7 +25,7 @@ int main() {
     }
 
     // 3. Create a GinState with desired parameters.
-    GinState state(true, 21); // Reduced maxItemSize for testing posting trees.
+    GinState state(true, 256); // Reduced maxItemSize for testing posting trees.
 
     // 4. Create a GinIndex object.
     GinIndex gin(state);
@@ -48,13 +48,19 @@ int main() {
             // Here we use TID(trow.id) because your TID takes one integer.
             postingMap[trigramKey].push_back(TID(trow.id));
         }
-    }
-    cout << "Number of unique trigrams: " << postingMap.size() << endl;
+        for (const auto& key : *trigramArray) {
+            // Sorting row.ids for each trigram key
+            std::sort(postingMap[key].begin(), postingMap[key].end(), [](const TID& a, const TID& b) {
+                return a.rowId < b.rowId;
+            });
 
-    } catch (const std::bad_alloc& e) {
-        std::cerr << "Memory allocation failed: " << e.what() << std::endl;
-        return 1;  // Or take any appropriate action
-    }
+    }}
+
+    
+    std::map<datum, vector<TID>> sortedPostingMap(postingMap.begin(), postingMap.end());
+    // cout << "Number of unique trigrams: " << sortedPostingMap.size() << endl;
+
+    
     // Debug: Print the number of unique trigrams
     // for (const auto& entry : postingMap) {
     //     cout << "Trigram: " << entry.first << " -> TIDs: ";
@@ -65,41 +71,43 @@ int main() {
     // }
 
     
-    // 6. Form final IndexTuples from the GinIndex.
-    // vector<IndexTuple*> tuples;
-    // for (const auto& kv : postingMap) {
-    //     datum key = kv.first;
-    //     const vector<TID>& tids = kv.second;
-    //     IndexTuple* tup = GinFormTuple(&state, key, tids, true);
-    //     if (tup != nullptr)
-    //         tuples.push_back(tup);
-    // }
-    // // Debug: Print the number of IndexTuples formed
-    // cout << "Number of IndexTuples formed: " << tuples.size() << endl;
+    //6. Form final IndexTuples from the GinIndex.
+    vector<IndexTuple*> tuples;
+    for (const auto& kv : sortedPostingMap) {
+        datum key = kv.first;
+        const vector<TID>& tids = kv.second;
+        IndexTuple* tup = GinFormTuple(&state, key, tids, true);
+        if (tup != nullptr)
+            tuples.push_back(tup);
+        cout << "Inserted key: " << key << " with " << tids.size() << " TIDs.\n";
+    }
+    // Debug: Print the number of IndexTuples formed
+    cout << "Number of IndexTuples formed: " << tuples.size() << endl;
 
-    // // 7. Print the final IndexTuples.
-    // for (const auto* tup : tuples) {
-    //     cout << "IndexTuple key: " << tup->key << "\n";
-    //     cout << "Posting Size (number of TIDs): " << tup->postingSize << "\n";
-    //     if (tup->postingList) {
-    //         cout << "Inline Posting List TIDs: ";
-    //         for (const auto& tid : tup->postingList->tids) {
-    //             cout << "(" << tid.rowId << ") ";
-    //         }
-    //         cout << "\n";
-    //     } else if (tup->postingTree) {
-    //         cout << "Posting tree present. Total tree size (simulated): " 
-    //              << tup->postingTree->getTotalSize() << " bytes.\n";
-    //     }
-    //     cout << "-------------------------\n";
-    // }
+    // 7. Print the final IndexTuples.
+    for (const auto* tup : tuples) {
+        cout << "IndexTuple key: " << tup->key << "\n";
+        cout << "Posting Size (number of TIDs): " << tup->postingSize << "\n";
+        if (tup->postingList) {
+            cout << "Inline Posting List TIDs: ";
+            for (const auto& tid : tup->postingList->tids) {
+                cout << "(" << tid.rowId << ") ";
+            }
+            cout << "\n";
+        } else if (tup->postingTree) {
+            cout << "Posting tree present. Total tree size (simulated): " 
+                 << tup->postingTree->getTotalSize() << " bytes.\n";
+        }
+        cout << "-------------------------\n";
+    }
 
     // // 8. Cleanup: Delete all allocated IndexTuples and associated PostingTrees.
-    // for (auto* tup : tuples) {
-    //     if (tup->postingTree)
-    //         delete tup->postingTree;
-    //     delete tup;
-    // }
+    for (auto* tup : tuples) {
+        if (tup->postingTree)
+            delete tup->postingTree;
+        delete tup;
+    }
 
-    // return 0;
+     return 0;
+
 }
