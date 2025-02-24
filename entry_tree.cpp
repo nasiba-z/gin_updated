@@ -3,49 +3,35 @@
 #include <functional>
 #include <iostream>
 
-// Fixed capacities for leaf and internal nodes. You can adjust these.
-constexpr size_t LEAF_CAPACITY = 4;
-constexpr size_t INTERNAL_CAPACITY = 4;
+// Utility: For simplicity, EntryLeafMaxCount is maximum keys for all nodes.
+static const size_t MAX_KEYS = EntryLeafMaxCount;
+// Define minimum number of keys per node (roughly half the maximum).
+static const size_t MIN_KEYS = (EntryLeafMaxCount + 1) / 2;
 
-// --------------------
-// EntryTreeNode Methods
-// --------------------
-EntryTreeNode::EntryTreeNode(bool isLeaf) : leaf(isLeaf) { }
-
-EntryTreeNode::~EntryTreeNode() {
-    // Recursively delete children.
-    for (auto child : children)
-        delete child;
-    // IMPORTANT: Do not delete the IndexTuple pointers in values here
-    // if they are managed elsewhere.
-}
-
-// --------------------
-// EntryTree Methods
-// --------------------
-EntryTree::EntryTree() : root(nullptr) { }
-
+// -------------------------
+// Destructor
+// -------------------------
 EntryTree::~EntryTree() {
     if (root)
         delete root;
 }
 
-// Helper: Build leaf nodes from sorted IndexTuple pointers.
-// We assume the input tuples are sorted by their key.
+// -------------------------
+// Bulk-Loading: Build leaf nodes from a sorted vector of IndexTuple pointers.
+// Assumes the input tuples are sorted by their key.
+// -------------------------
 std::vector<EntryTreeNode*> EntryTree::buildLeafNodes(const std::vector<IndexTuple*>& tuples) {
     std::vector<EntryTreeNode*> leaves;
     size_t n = tuples.size();
     size_t i = 0;
     while (i < n) {
-        size_t count = LEAF_CAPACITY;
-        if (i + count > n)
-            count = n - i;
+        // Create a new leaf.
         EntryTreeNode* leaf = new EntryTreeNode(true);
-        // Fill leaf with tuples.
+        // Insert up to MAX_KEYS items.
+        size_t count = std::min(n - i, MAX_KEYS);
         for (size_t j = 0; j < count; j++) {
-            // Each leaf stores the key and pointer from each tuple.
-            leaf->keys.push_back(tuples[i+j]->key);
-            leaf->values.push_back(tuples[i+j]);
+            leaf->keys.push_back(tuples[i + j]->key);
+            leaf->values.push_back(tuples[i + j]);
         }
         leaves.push_back(leaf);
         i += count;
@@ -53,7 +39,10 @@ std::vector<EntryTreeNode*> EntryTree::buildLeafNodes(const std::vector<IndexTup
     return leaves;
 }
 
-// Helper: Build internal nodes from a vector of child nodes.
+// -------------------------
+// Bulk-Loading: Build internal nodes bottom-up from a vector of child nodes.
+// In internal nodes, keys are used for routing: each key is the first key of the child (except the first child).
+// -------------------------
 EntryTreeNode* EntryTree::buildInternalLevel(const std::vector<EntryTreeNode*>& children) {
     if (children.size() == 1)
         return children[0];
@@ -62,16 +51,17 @@ EntryTreeNode* EntryTree::buildInternalLevel(const std::vector<EntryTreeNode*>& 
     size_t n = children.size();
     size_t i = 0;
     while (i < n) {
-        size_t count = INTERNAL_CAPACITY;
-        if (i + count > n)
-            count = n - i;
         EntryTreeNode* parent = new EntryTreeNode(false);
-        // Group count children under this parent.
+        // Group up to MAX_KEYS+1 children in one internal node.
+        size_t count = std::min(n - i, MAX_KEYS + 1);
+        // Assign children and seperator keys
+        // The first child pointer is inserted without a key.
         for (size_t j = 0; j < count; j++) {
-            parent->children.push_back(children[i+j]);
-            // For internal nodes, keys are taken as the first key from each child (except the first).
-            if (j > 0)
-                parent->keys.push_back(children[i+j]->keys.front());
+            parent->children.push_back(children[i + j]);
+            // For each child after the first, use its first key as a separator.
+            if (j > 0 && !children[i + j]->keys.empty()) {
+                parent->keys.push_back(children[i + j]->keys.front());
+            }
         }
         parents.push_back(parent);
         i += count;
@@ -79,44 +69,117 @@ EntryTreeNode* EntryTree::buildInternalLevel(const std::vector<EntryTreeNode*>& 
     return buildInternalLevel(parents);
 }
 
-// Bulk-load the tree from a sorted vector of IndexTuple pointers.
+// -------------------------
+// Bulk-Loading: Build the EntryTree from a sorted vector of IndexTuple pointers.
+// -------------------------
 void EntryTree::bulkLoad(const std::vector<IndexTuple*>& tuples) {
-    // First, build leaf nodes from the sorted tuples.
+    // First, build leaf nodes.
     std::vector<EntryTreeNode*> leaves = buildLeafNodes(tuples);
-    // Then, build internal levels until only one node remains.
+    // Then, build the internal levels until one root remains.
     root = buildInternalLevel(leaves);
 }
 
-// Insert: A simple insertion algorithm for a B‑tree.
-// This implementation does not handle node splitting.
+// -------------------------
+// Incremental Insertion: Insert a key and its associated tuple into the tree.
+// -------------------------
 void EntryTree::insert(int32_t key, IndexTuple* tuple) {
-    // If the tree is empty, create a new leaf node.
+    // If tree is empty, create a new leaf.
     if (!root) {
         root = new EntryTreeNode(true);
         root->keys.push_back(key);
         root->values.push_back(tuple);
         return;
     }
-    // Otherwise, traverse to the appropriate leaf node.
-    EntryTreeNode* current = root;
-    while (!current->leaf) {
-        size_t i = 0;
-        while (i < current->keys.size() && key >= current->keys[i])
-            i++;
-        current = current->children[i];
+
+    // If root is full, split it.
+    if ( (root->leaf && root->keys.size() == MAX_KEYS) ||
+         (!root->leaf && root->keys.size() == MAX_KEYS) ) {
+        EntryTreeNode* newRoot = new EntryTreeNode(false);
+        newRoot->children.push_back(root);
+        splitChild(newRoot, 0);
+        root = newRoot;
     }
-    // Now current is a leaf; insert in sorted order.
-    auto it = std::upper_bound(current->keys.begin(), current->keys.end(), key);
-    size_t pos = it - current->keys.begin();
-    current->keys.insert(it, key);
-    current->values.insert(current->values.begin() + pos, tuple);
-    // Note: Splitting of full nodes is not handled in this simple version.
+    insertNonFull(root, key, tuple);
 }
 
-// Search: Simple search through the tree.
+// -------------------------
+// Helper for Incremental Insertion: Insert key/tuple into a node assumed not full.
+// -------------------------
+void EntryTree::insertNonFull(EntryTreeNode* node, int32_t key, IndexTuple* tuple) {
+    if (node->leaf) {
+        // Insert into leaf in sorted order.
+        auto pos = std::upper_bound(node->keys.begin(), node->keys.end(), key);
+        size_t index = pos - node->keys.begin();
+        node->keys.insert(pos, key);
+        node->values.insert(node->values.begin() + index, tuple);
+    } else {
+        // Find the child to descend.
+        size_t i = 0;
+        while (i < node->keys.size() && key >= node->keys[i])
+            i++;
+        // Check if the child is full.
+        if (node->children[i]->leaf) {
+            if (node->children[i]->keys.size() == MAX_KEYS) {
+                splitChild(node, i);
+                // After split, decide which child to descend.
+                if (key >= node->keys[i])
+                    i++;
+            }
+        } else {
+            if (node->children[i]->keys.size() == MAX_KEYS) {
+                splitChild(node, i);
+                if (key >= node->keys[i])
+                    i++;
+            }
+        }
+        insertNonFull(node->children[i], key, tuple);
+    }
+}
+
+// -------------------------
+// Helper: Split the full child node at index i of the given parent.
+// For a leaf node, we split and promote the first key of the new sibling.
+// For an internal node, we remove the median key and promote it.
+// -------------------------
+void EntryTree::splitChild(EntryTreeNode* parent, size_t i) {
+    EntryTreeNode* child = parent->children[i];
+    EntryTreeNode* sibling = new EntryTreeNode(child->leaf);
+    size_t t; // splitting index
+    if (child->leaf) {
+        t = (child->keys.size() + 1) / 2; // split roughly in half
+        // Sibling gets keys and values from t to end.
+        sibling->keys.assign(child->keys.begin() + t, child->keys.end());
+        sibling->values.assign(child->values.begin() + t, child->values.end());
+        // Resize child.
+        child->keys.resize(t);
+        child->values.resize(t);
+        // In a B+ tree, the promoted key is the first key of the new sibling.
+        int32_t promoteKey = sibling->keys.front();
+        parent->keys.insert(parent->keys.begin() + i, promoteKey);
+    } else {
+        t = child->keys.size() / 2; // for internal nodes, use lower median
+        // The promoted key is child->keys[t]
+        int32_t promoteKey = child->keys[t];
+        // Sibling gets keys from t+1 to end.
+        sibling->keys.assign(child->keys.begin() + t + 1, child->keys.end());
+        child->keys.resize(t);
+        // Sibling gets child pointers from t+1 to end.
+        sibling->children.assign(child->children.begin() + t + 1, child->children.end());
+        child->children.resize(t + 1);
+        // Insert the promoted key into the parent.
+        parent->keys.insert(parent->keys.begin() + i, promoteKey);
+    }
+    // Insert sibling into parent's children.
+    parent->children.insert(parent->children.begin() + i + 1, sibling);
+}
+
+// -------------------------
+// Search Function: Look for a key in the tree.
+// -------------------------
 bool EntryTree::search(int32_t key) const {
     EntryTreeNode* current = root;
-    if (!current) return false;
+    if (!current)
+        return false;
     while (!current->leaf) {
         size_t i = 0;
         while (i < current->keys.size() && key >= current->keys[i])
@@ -126,22 +189,23 @@ bool EntryTree::search(int32_t key) const {
     return std::find(current->keys.begin(), current->keys.end(), key) != current->keys.end();
 }
 
-// getTotalSize: Compute the total "logical" size of the tree by traversing all nodes.
+// -------------------------
+// getTotalSize: Compute the total "logical" size (number of keys) in the tree.
+// -------------------------
 size_t EntryTree::getTotalSize() const {
     size_t total = 0;
-    // Recursive lambda to traverse the tree.
     std::function<void(EntryTreeNode*)> traverse = [&](EntryTreeNode* node) {
         if (node->leaf) {
-            total += sizeof(EntryTreeNode) + node->keys.size() * sizeof(int32_t)
-                     + node->values.size() * sizeof(IndexTuple*);
+            total += node->keys.size();
         } else {
-            for (EntryTreeNode* child : node->children)
+            for (auto child : node->children)
                 traverse(child);
-            total += sizeof(EntryTreeNode) + node->keys.size() * sizeof(int32_t)
-                     + node->children.size() * sizeof(EntryTreeNode*);
+            total += node->keys.size();
         }
     };
-    if (root) traverse(root);
+    if (root)
+        traverse(root);
     return total;
 }
+
 

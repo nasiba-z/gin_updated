@@ -1,4 +1,4 @@
-#include "gin_index.h"
+#include "gin_index_art.h"
 #include "posting_tree.h"
 #include <stdexcept>
 #include <algorithm>
@@ -41,11 +41,14 @@ size_t IndexTuple::getTupleSize() const {
 
 // ----------------------------------------------------------------
 // GinFormTuple: Create an IndexTuple from the given key and posting data.
-IndexTuple* GinFormTuple(GinState* ginstate,
+IndexTuple* GinFormTuple_ART(GinState* ginstate,
     datum key,
     const std::vector<TID>& postingData,
     bool errorTooBig)
-    {
+    {   // Ensure the key is not null
+        if (key.empty()) {
+            throw std::logic_error("Key cannot be null");
+        }
         // Create a new index tuple.
         IndexTuple* itup = new IndexTuple();
         // Set the key directly (no conversion needed).

@@ -13,3 +13,6 @@ bool TID::operator>(const TID& other) const {
 bool TID::operator<(const TID& other) const {
     return rowId < other.rowId;
 }
+bool TID::operator==(const TID& other) const {
+    return rowId == other.rowId;
+}

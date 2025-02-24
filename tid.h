@@ -18,6 +18,8 @@ struct TID {
     bool operator>(const TID& other) const;
 
     bool operator<(const TID& other) const;
+    // Define equality operator:
+    bool operator==(const TID& other) const;
 };
 
 #endif // TID_H

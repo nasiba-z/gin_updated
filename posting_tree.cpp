@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cassert>
 #include <functional>
+#include <iostream>
 
 // ------------------------------------------------------------------
 // BTreeNode Implementation
@@ -26,9 +27,9 @@ PostingTree::~PostingTree() {
 }
 
 // ------------------------------------------------------------------
-// Helper function: Build leaf nodes from sorted TIDs.
+// Helper function: Build leaf nodes from sorted TIDs (bulkLoad approach).
 // ------------------------------------------------------------------
-std::vector<BTreeNode*> PostingTree::  buildLeafNodes(const std::vector<TID>& sortedTIDs) {
+std::vector<BTreeNode*> PostingTree::buildLeafNodes(const std::vector<TID>& sortedTIDs) {
     std::vector<BTreeNode*> leaves;
     size_t n = sortedTIDs.size();
     size_t i = 0;
@@ -38,7 +39,7 @@ std::vector<BTreeNode*> PostingTree::  buildLeafNodes(const std::vector<TID>& so
         size_t count = LeafTargetCount;
         if (i + count > n)
             count = n - i;
-        // If count is less than the minimum and leaves already exist, merge it with the previous leaf.
+        // If count is less than the minimum and leaves already exist, merge with previous leaf.
         if (!leaves.empty() && count < LeafMinCount) {
             BTreeNode* lastLeaf = leaves.back();
             lastLeaf->keys.insert(lastLeaf->keys.end(), sortedTIDs.begin() + i, sortedTIDs.end());
@@ -56,17 +57,14 @@ std::vector<BTreeNode*> PostingTree::  buildLeafNodes(const std::vector<TID>& so
 }
 
 // ------------------------------------------------------------------
-// Helper function: Build internal nodes from a vector of child nodes.
+// Helper function: Build internal nodes from a vector of child nodes (bulkLoad).
 // ------------------------------------------------------------------
-BTreeNode* PostingTree:: buildInternalLevel(const std::vector<BTreeNode*>& children) {
-    // If there's only one child, that's the tree.
+BTreeNode* PostingTree::buildInternalLevel(const std::vector<BTreeNode*>& children) {
     if (children.size() == 1)
         return children[0];
 
     std::vector<BTreeNode*> parents;
-    // Use a fixed branching factor for internal nodes.
-    // For example, let’s use a branching factor B.
-    const size_t B = 16; 
+    const size_t B = 16; // branching factor for internal nodes.
     size_t n = children.size();
     size_t i = 0;
     while (i < n) {
@@ -74,9 +72,7 @@ BTreeNode* PostingTree:: buildInternalLevel(const std::vector<BTreeNode*>& child
         if (i + count > n)
             count = n - i;
         BTreeNode* parent = new BTreeNode(false);
-        // Set parent's children from children[i] to children[i+count-1].
         parent->children.insert(parent->children.end(), children.begin() + i, children.begin() + i + count);
-        // The parent's keys are the first key of each child except the first.
         for (size_t j = 1; j < count; j++) {
             parent->keys.push_back(children[i + j]->keys.front());
         }
@@ -87,37 +83,132 @@ BTreeNode* PostingTree:: buildInternalLevel(const std::vector<BTreeNode*>& child
 }
 
 // ------------------------------------------------------------------
-// bulkLoad: Build the PostingTree from a sorted vector of TIDs.
+// Bulk-load: Build the PostingTree from a sorted vector of TIDs.
 // ------------------------------------------------------------------
 void PostingTree::bulkLoad(const std::vector<TID>& sortedTIDs) {
-    // Build the leaf nodes.
     std::vector<BTreeNode*> leaves = buildLeafNodes(sortedTIDs);
-    // Build the internal levels.
     root = buildInternalLevel(leaves);
 }
+
 // ------------------------------------------------------------------
 // getTotalSize: Compute the total "logical" size of the posting tree.
-// This function traverses all leaf nodes and sums their sizes.
-// Here we assume each leaf's size is:
-//   overhead (e.g., sizeof(BTreeNode)) plus the number of TIDs times sizeof(TID).
 // ------------------------------------------------------------------
 size_t PostingTree::getTotalSize() const {
     size_t total = 0;
-    
-    // Define a lambda to traverse the B-tree recursively.
     std::function<void(BTreeNode*)> traverse = [&](BTreeNode* node) {
         if (node->leaf) {
-            // For each leaf, we simulate the size as:
-            // overhead + (number of TIDs * sizeof(TID))
             total += sizeof(BTreeNode) + node->keys.size() * sizeof(TID);
         } else {
-            // For internal nodes, recursively traverse children.
             for (BTreeNode* child : node->children)
                 traverse(child);
         }
     };
-    
     if (root)
         traverse(root);
     return total;
+}
+
+// ------------------------------------------------------------------
+// Incremental Insertion Functions
+// ------------------------------------------------------------------
+
+// Public method: Insert a TID into the tree.
+void PostingTree::insert(const TID& tid) {
+    if (root == nullptr) {
+        root = new BTreeNode(true);
+    }
+    // If the root is full, split it and create a new root.
+    if (root->keys.size() >= LeafMaxCount) {
+        BTreeNode* newRoot = new BTreeNode(false);
+        newRoot->children.push_back(root);
+        splitChild(newRoot, 0);
+        root = newRoot;
+    }
+    insertNonFull(root, tid);
+}
+
+// Helper: Recursively insert tid into a node that is assumed not full.
+void PostingTree::insertNonFull(BTreeNode* node, const TID& tid) {
+    if (node->leaf) {
+        auto pos = std::lower_bound(node->keys.begin(), node->keys.end(), tid);
+        node->keys.insert(pos, tid);
+    } else {
+        int i = node->keys.size() - 1;
+        while (i >= 0 && tid < node->keys[i])
+            i--;
+        i++; // child index to descend.
+        if (node->children[i]->keys.size() >= LeafMaxCount) {
+            splitChild(node, i);
+            if (tid > node->keys[i])
+                i++;
+        }
+        insertNonFull(node->children[i], tid);
+    }
+}
+
+// Helper: Split the full child node at index i of the given parent.
+void PostingTree::splitChild(BTreeNode* parent, size_t i) {
+    BTreeNode* child = parent->children[i];
+    BTreeNode* sibling = new BTreeNode(child->leaf);
+    size_t mid = child->keys.size() / 2;
+    TID median = child->keys[mid];
+
+    // Sibling gets keys from mid+1 to end.
+    sibling->keys.assign(child->keys.begin() + mid + 1, child->keys.end());
+    child->keys.resize(mid);
+    
+    if (!child->leaf) {
+        sibling->children.assign(child->children.begin() + mid + 1, child->children.end());
+        child->children.resize(mid + 1);
+    }
+    
+    parent->keys.insert(parent->keys.begin() + i, median);
+    parent->children.insert(parent->children.begin() + i + 1, sibling);
+}
+
+// ------------------------------------------------------------------
+// Search Function
+// ------------------------------------------------------------------
+static bool searchInNode(BTreeNode* node, const TID& k) {
+    auto it = std::lower_bound(node->keys.begin(), node->keys.end(), k);
+    int idx = it - node->keys.begin();
+    if (it != node->keys.end() && *it == k)
+        return true;
+    if (node->leaf)
+        return false;
+    return searchInNode(node->children[idx], k);
+}
+
+bool PostingTree::search(const TID& k) const {
+    if (!root)
+        return false;
+    return searchInNode(root, k);
+}
+
+// ------------------------------------------------------------------
+// Create Posting Tree from a vector of TIDs,
+// mimicking createPostingTree from GIN.
+// ------------------------------------------------------------------
+void PostingTree::createFromVector(const std::vector<TID>& items) {
+    if (items.empty())
+        return;
+    
+    // Define an inline limit, simulating the maximum number of TIDs that fit in one "page."
+    const size_t inlineLimit = LeafTargetCount;  // Use LeafTargetCount as the inline limit.
+    
+    // Initialize root as a leaf node.
+    root = new BTreeNode(true);
+    
+    size_t nrootitems = 0;
+    // Copy as many TIDs as fit into the root.
+    while (nrootitems < items.size() && nrootitems < inlineLimit) {
+        root->keys.push_back(items[nrootitems]);
+        nrootitems++;
+    }
+    
+    // If there are remaining TIDs, insert them incrementally.
+    for (size_t i = nrootitems; i < items.size(); i++) {
+        insert(items[i]);
+    }
+   
 }

@@ -30,6 +30,9 @@ struct BTreeNode {
     ~BTreeNode();
 };
 
+// Forward declaration of BTreeNode.
+struct BTreeNode;
+
 // -------------------------------------------------------------------
 // PostingTree class: a full B-tree for TIDs built via bulk-loading.
 // -------------------------------------------------------------------
@@ -44,6 +47,8 @@ public:
     // This function first builds leaf nodes based on the target number of TIDs per leaf
     // (derived from GinPostingListSegmentTargetSize) and then builds the tree bottom-up.
     void bulkLoad(const std::vector<TID>& sortedTIDs);
+    // Incremental insertion: insert a single TID into the tree.
+    void insert(const TID& tid);
     // Traverse the tree and print out the keys.
     // void traverse(BTreeNode* x) const;
     // Search for a key in the tree (optional).
@@ -53,6 +58,13 @@ public:
     size_t getTotalSize() const;      // <--- Declaration here.
     // Helper: Build internal nodes (bottom-up) from a vector of child nodes.
     BTreeNode* buildInternalLevel(const std::vector<BTreeNode*>& children);
+    void createFromVector(const std::vector<TID>& items);
+private:
+    // Helper for incremental insertion: insert tid into a node assumed not to be full.
+    void insertNonFull(BTreeNode* node, const TID& tid);
+
+    // Helper: Split a full child node at index 'i' of a given parent.
+    void splitChild(BTreeNode* parent, size_t i);
 };
 
 #endif // POSTING_TREE_H
