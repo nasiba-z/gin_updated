@@ -38,9 +38,9 @@ int main() {
             postingMap[tri].push_back(TID(trow.id));
         }
         processedRows++;
-        if (processedRows % 10000 == 0) {
-            cout << "Processed " << processedRows << " rows." << endl;
-        }
+        // if (processedRows % 10000 == 0) {
+        //     cout << "Processed " << processedRows << " rows." << endl;
+        // }
     }
     
     cout << "Number of unique trigrams: " << postingMap.size() << endl;
@@ -69,9 +69,9 @@ int main() {
         // Print a counter each 1000th key
         static int counter = 0;
         counter++;
-        if (counter % 1000 == 0) {
-            cout << "Inserted key: " << trigram << " with " << tids.size() << " TIDs." << endl;
-        }
+        // if (counter % 1000 == 0) {
+        //     cout << "Inserted key: " << trigram << " with " << tids.size() << " TIDs." << endl;
+        // }
     }
     // 8. Print the final IndexTuples.
     for (const auto* tup : tuples) {
@@ -90,6 +90,16 @@ int main() {
         cout << "-------------------------\n";
     }
     cout << "Number of IndexTuples formed: " << tuples.size() << endl;
+    bool found = false;
+    for (const auto* tup : tuples) {
+        if (tup->key == "low") {
+            cout << "Found trigram \"low\" with posting size " << tup->postingSize << endl;
+            found = true;
+            break;
+        }
+    }
+    if (!found)
+        cout << "Trigram \"low\" not found." << endl;
 
     // 5. Convert the IndexTuples into ART items.
     // Each ART item is a pair: { key (vector<unsigned char>), value (IndexTuple*) }.
@@ -113,29 +123,26 @@ int main() {
     // ARTNode* artRoot = ART_bulkLoad(artItems, 0);
     cout << "ART tree built via bulk loading on " << artItems.size() << " unique trigrams." << endl;
 
-    // 7. Test search on the ART tree.
-    // if (!artItems.empty()) {
-    //     const auto &firstKey = artItems.front().first;
-    //     // We assume that ARTLeaf now stores an IndexTuple* as its value,
-    //     // so the search returns a pointer to that value.
-    //     IndexTuple** foundTuple = reinterpret_cast<IndexTuple**>(artRoot->search(firstKey.data(), firstKey.size(), 0));
-    //     if (foundTuple && *foundTuple) {
-    //         cout << "Search found key \"";
-    //         for (auto ch : firstKey)
-    //             cout << ch;
-    //         cout << "\" with posting size " << (*foundTuple)->postingSize << endl;
-    //     } else {
-    //         cout << "Search did not find the first key." << endl;
-    //     }
-    // }
+    if (!artItems.empty()) {
+        const auto &firstKey = artItems.front().first;
+        IndexTuple* foundTuple = artRoot->search(firstKey.data(), firstKey.size(), 0);
+        if (foundTuple) {
+            cout << "Search found key \"";
+            for (auto ch : firstKey)
+                cout << ch;
+            cout << "\" with posting size " << foundTuple->postingSize << endl;
+        } else {
+            cout << "Search did not find the first key." << endl;
+        }
+    }
 
     // Additional tests: search for some specific trigrams.
-    vector<string> testTrigrams = {"cho", "yel", "low"};
+    const vector<string> testTrigrams = {"cho", "yel", "low"};
     for (const auto& tri : testTrigrams) {
         vector<unsigned char> keyVec(tri.begin(), tri.end());
-        IndexTuple** result = reinterpret_cast<IndexTuple**>(artRoot->search(keyVec.data(), keyVec.size(), 0));
-        if (result && *result) {
-            cout << "Trigram \"" << tri << "\" found with posting size " << (*result)->postingSize << endl;
+        IndexTuple* foundTuple = artRoot->search(keyVec.data(), keyVec.size(), 0);
+        if (foundTuple ) {
+            cout << "Trigram \"" << tri << "\" found with posting size " << foundTuple->postingSize << endl;
         } 
         else {
             cout << "Trigram \"" << tri << "\" not found." << endl;
@@ -144,8 +151,7 @@ int main() {
 
     // 8. Cleanup.
     
-    // Depending on ownership semantics, you may need to delete the IndexTuples.
-    // For this test, assume the ART tree has taken ownership.
+
     for (auto* tup : tuples) {
         if (tup->postingTree)
             delete tup->postingTree;

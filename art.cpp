@@ -2,31 +2,75 @@
 #include "ART.h"
 #include <iostream>
 
-// ---------------------
-// ARTNode Implementation
-// ---------------------
-ARTNode::ARTNode(NodeType t) : type(t) {}
-ARTNode::~ARTNode() {}
+
 
 // ---------------------
 // ARTLeaf Implementation
 // ---------------------
-ARTLeaf::ARTLeaf(const std::vector<unsigned char>& key, int v)
+ARTLeaf::ARTLeaf(const std::vector<unsigned char>& key, IndexTuple* v)
     : ARTNode(NodeType::LEAF), fullKey(key), value(v) {}
 
-ARTNode* ARTLeaf::insert(const unsigned char* key, int keyLen, int depth, int newValue) {
+// ARTLeaf::~ARTLeaf() {
+//     delete value;
+// }
+
+
+ARTNode* ARTLeaf::insert(const unsigned char* key, int keyLen, int depth, IndexTuple* newValue) {
     if (fullKey.size() == static_cast<size_t>(keyLen) &&
         memcmp(fullKey.data(), key, keyLen) == 0) {
         value = newValue;
+        return this;
     }
-    // Splitting on key mismatch is not implemented in this simplified example.
-    return this;
-}
+    
+    // Otherwise, we have a key mismatch and need to split this leaf.
+    // Create a new inner node (using Node4 for simplicity).
+    ARTNode4* newNode = new ARTNode4();
+    
+    // Compute the common prefix length between the existing leaf key and the new key,
+    // starting at the given depth.
+    int i = depth;
+    int maxLen = std::min(static_cast<int>(fullKey.size()), keyLen);
+    while (i < maxLen && fullKey[i] == key[i])
+        i++;
+    int commonPrefixLen = i - depth;
+    
+    // Store the common prefix in the new inner node.
+    newNode->prefix.resize(commonPrefixLen);
+    memcpy(newNode->prefix.data(), key + depth, commonPrefixLen);
+    newNode->prefixLen = commonPrefixLen;
+    
+    // Advance depth past the common prefix.
+    depth += commonPrefixLen;
+    
+    // Determine the branching bytes for both keys at the current depth.
+    unsigned char existingByte = (depth < (int)fullKey.size()) ? fullKey[depth] : 0;
+    unsigned char newByte = (depth < keyLen) ? key[depth] : 0;
+    
+    // Create a new leaf for the new key.
+    std::vector<unsigned char> newKeyVec(key, key + keyLen);
+    ARTLeaf* newLeaf = new ARTLeaf(newKeyVec, newValue);
+    
+    // Insert both children into newNode in sorted order by the branching byte.
+    if (existingByte < newByte) {
+        newNode->keys[0] = existingByte;
+        newNode->children[0] = this;   // existing leaf
+        newNode->keys[1] = newByte;
+        newNode->children[1] = newLeaf;
+    } else {
+        newNode->keys[0] = newByte;
+        newNode->children[0] = newLeaf;
+        newNode->keys[1] = existingByte;
+        newNode->children[1] = this;   // existing leaf
+    }
+    newNode->count = 2;
+    
+    return newNode;
+    }
 
-int* ARTLeaf::search(const unsigned char* key, int keyLen, int depth) const {
+IndexTuple* ARTLeaf::search(const unsigned char* key, int keyLen, int depth) const {
     if (fullKey.size() == static_cast<size_t>(keyLen) &&
         memcmp(fullKey.data(), key, keyLen) == 0)
-        return const_cast<int*>(&value);
+        return value;
     return nullptr;
 }
 
@@ -44,7 +88,9 @@ ARTNode4::~ARTNode4() {
     }
 }
 
-ARTNode* ARTNode4::insert(const unsigned char* key, int keyLen, int depth, int value) {
+ARTNode* ARTNode4::insert(const unsigned char* key, int keyLen, int depth, IndexTuple* value) {
+    // For simplicity, we do not update the prefix here.
+    // In a full implementation, you should also check the stored prefix.
     assert(depth < keyLen);
     unsigned char currentKey = key[depth];
 
@@ -77,12 +123,20 @@ ARTNode* ARTNode4::insert(const unsigned char* key, int keyLen, int depth, int v
     return this;
 }
 
-int* ARTNode4::search(const unsigned char* key, int keyLen, int depth) const {
-    if (depth >= keyLen) return nullptr;
-    unsigned char currentKey = key[depth];
+IndexTuple* ARTNode4::search(const unsigned char* key, int keyLen, int depth) const {
+    int d = depth;
+    // If there is a stored prefix in this node, check that the search key matches.
+    if (prefixLen > 0) {
+        if (keyLen - depth < prefixLen) return nullptr;
+        if (memcmp(prefix.data(), key + depth, prefixLen) != 0)
+            return nullptr;
+        d += prefixLen;
+    }
+    if (d >= keyLen) return nullptr;
+    unsigned char currentKey = key[d];
     for (int i = 0; i < count; i++) {
         if (keys[i] == currentKey) {
-            return children[i]->search(key, keyLen, depth + 1);
+            return children[i]->search(key, keyLen, d + 1);
         }
     }
     return nullptr;
@@ -102,7 +156,7 @@ ARTNode16::~ARTNode16() {
     }
 }
 
-ARTNode* ARTNode16::insert(const unsigned char* key, int keyLen, int depth, int value) {
+ARTNode* ARTNode16::insert(const unsigned char* key, int keyLen, int depth, IndexTuple* value) {
     assert(depth < keyLen);
     unsigned char currentKey = key[depth];
 
@@ -136,7 +190,7 @@ ARTNode* ARTNode16::insert(const unsigned char* key, int keyLen, int depth, int 
     return this;
 }
 
-int* ARTNode16::search(const unsigned char* key, int keyLen, int depth) const {
+IndexTuple* ARTNode16::search(const unsigned char* key, int keyLen, int depth) const {
     if (depth >= keyLen) return nullptr;
     unsigned char currentKey = key[depth];
     for (int i = 0; i < count; i++) {
@@ -164,7 +218,7 @@ ARTNode48::~ARTNode48() {
     }
 }
 
-ARTNode* ARTNode48::insert(const unsigned char* key, int keyLen, int depth, int value) {
+ARTNode* ARTNode48::insert(const unsigned char* key, int keyLen, int depth, IndexTuple* value) {
     assert(depth < keyLen);
     unsigned char currentKey = key[depth];
 
@@ -190,7 +244,7 @@ ARTNode* ARTNode48::insert(const unsigned char* key, int keyLen, int depth, int 
     return this;
 }
 
-int* ARTNode48::search(const unsigned char* key, int keyLen, int depth) const {
+IndexTuple* ARTNode48::search(const unsigned char* key, int keyLen, int depth) const {
     if (depth >= keyLen) return nullptr;
     unsigned char currentKey = key[depth];
     if (childIndex[currentKey] == 0xFF)
@@ -213,7 +267,7 @@ ARTNode256::~ARTNode256() {
     }
 }
 
-ARTNode* ARTNode256::insert(const unsigned char* key, int keyLen, int depth, int value) {
+ARTNode* ARTNode256::insert(const unsigned char* key, int keyLen, int depth, IndexTuple* value) {
     assert(depth < keyLen);
     unsigned char currentKey = key[depth];
     // If a child already exists at the index, delegate insertion.
@@ -231,7 +285,7 @@ ARTNode* ARTNode256::insert(const unsigned char* key, int keyLen, int depth, int
     return this;
 }
 
-int* ARTNode256::search(const unsigned char* key, int keyLen, int depth) const {
+IndexTuple* ARTNode256::search(const unsigned char* key, int keyLen, int depth) const {
     if (depth >= keyLen) return nullptr;
     unsigned char currentKey = key[depth];
     if (children[currentKey] == nullptr)
@@ -246,27 +300,25 @@ ARTNode* ART_bulkLoad(const std::vector<std::pair<std::vector<unsigned char>, In
 
     // If we have few items, or we've reached the end of the key,
     // then build a leaf-level container.
-    // (In a classic ART, each leaf is a single key/value pair;
-    // here, for bulk loading, we group adjacent items into an inner node.)
     if (items.size() <= LEAF_THRESHOLD || depth >= (int)items[0].first.size()) {
         // If there's only one item, return an ARTLeaf.
         if (items.size() == 1) {
-            return new ARTLeaf(items[0].first, items[0].second->postingSize);
+            return new ARTLeaf(items[0].first, items[0].second);
         }
         // Otherwise, create a simple inner node (using Node4 for simplicity)
         ARTNode4* node = new ARTNode4();
         // Insert each item as a child leaf.
         for (size_t i = 0; i < items.size(); i++) {
-            ARTLeaf* leaf = new ARTLeaf(items[i].first, items[i].second->postingSize);
-            // For all but the first child, the separator key is the first byte of the key.
+            ARTLeaf* leaf = new ARTLeaf(items[i].first, items[i].second);
+            // For all but the first child, the separator key should be the byte at index 'depth'
             if (i > 0) {
-                node->keys[node->count] = items[i].first[0];
+                node->keys[node->count] = (depth < items[i].first.size()) ? items[i].first[depth] : 0;
             }
             node->children[node->count] = leaf;
             node->count++;
         }
         return node;
-    }
+        }
 
     // Partition the items by the byte at the current depth.
     std::vector<std::vector<std::pair<std::vector<unsigned char>, IndexTuple*>>> partitions(256);

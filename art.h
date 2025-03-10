@@ -17,37 +17,38 @@ enum class NodeType { NODE4, NODE16, NODE48, NODE256, LEAF };
 class ARTNode {
 public:
     NodeType type;
-    ARTNode(NodeType t);
-    virtual ~ARTNode();
+    std::vector<unsigned char> prefix; // Compressed prefix (can be empty)
+    int prefixLen;                      // Number of prefix bytes
+    ARTNode(NodeType t) : type(t), prefixLen(0) {}
+    virtual ~ARTNode() {}
 
     // Insert a key/value pair starting at a given depth.
-    virtual ARTNode* insert(const unsigned char* key, int keyLen, int depth, int value) = 0;
-    // Search for a key starting at a given depth.
-    virtual int* search(const unsigned char* key, int keyLen, int depth) const = 0;
+    virtual ARTNode* insert(const unsigned char* key, int keyLen, int depth, IndexTuple* value) = 0;
+    virtual IndexTuple* search(const unsigned char* key, int keyLen, int depth) const = 0;
 };
 
 // Leaf node storing the full key and its associated value.
 class ARTLeaf : public ARTNode {
-public:
-    std::vector<unsigned char> fullKey;
-    int value;
+    public:
+        std::vector<unsigned char> fullKey;
+        IndexTuple* value;   // Change this from int to IndexTuple*
+    
+        ARTLeaf(const std::vector<unsigned char>& key, IndexTuple* v);
+        ARTNode* insert(const unsigned char* key, int keyLen, int depth, IndexTuple* newValue) override;
+        IndexTuple* search(const unsigned char* key, int keyLen, int depth) const override;
+    };
 
-    ARTLeaf(const std::vector<unsigned char>& key, int v);
-    ARTNode* insert(const unsigned char* key, int keyLen, int depth, int newValue) override;
-    int* search(const unsigned char* key, int keyLen, int depth) const override;
-};
-
-// Node4: Up to 4 children. (Implementation as given.)
+// Node4 class.
 class ARTNode4 : public ARTNode {
 public:
-    unsigned char keys[4];    // Array for keys.
-    ARTNode* children[4];     // Array for child pointers.
-    int count;                // Number of children.
+    unsigned char keys[4];
+    ARTNode* children[4];
+    int count;
 
     ARTNode4();
     ~ARTNode4() override;
-    ARTNode* insert(const unsigned char* key, int keyLen, int depth, int value) override;
-    int* search(const unsigned char* key, int keyLen, int depth) const override;
+    ARTNode* insert(const unsigned char* key, int keyLen, int depth, IndexTuple* value) override;
+    IndexTuple* search(const unsigned char* key, int keyLen, int depth) const override;
 };
 
 // Node16: Up to 16 children. Similar to Node4, but with capacity 16.
@@ -59,8 +60,8 @@ public:
 
     ARTNode16();
     ~ARTNode16() override;
-    ARTNode* insert(const unsigned char* key, int keyLen, int depth, int value) override;
-    int* search(const unsigned char* key, int keyLen, int depth) const override;
+    ARTNode* insert(const unsigned char* key, int keyLen, int depth, IndexTuple* value) override;
+    IndexTuple* search(const unsigned char* key, int keyLen, int depth) const override;
 };
 
 // Node48: Uses a 256-element index array to map key bytes to a secondary array of up to 48 children.
@@ -72,8 +73,8 @@ public:
 
     ARTNode48();
     ~ARTNode48() override;
-    ARTNode* insert(const unsigned char* key, int keyLen, int depth, int value) override;
-    int* search(const unsigned char* key, int keyLen, int depth) const override;
+    ARTNode* insert(const unsigned char* key, int keyLen, int depth, IndexTuple* value) override;
+    IndexTuple* search(const unsigned char* key, int keyLen, int depth) const override;
 };
 
 // Node256: Uses a direct array of 256 child pointers.
@@ -84,8 +85,8 @@ public:
 
     ARTNode256();
     ~ARTNode256() override;
-    ARTNode* insert(const unsigned char* key, int keyLen, int depth, int value) override;
-    int* search(const unsigned char* key, int keyLen, int depth) const override;
+    ARTNode* insert(const unsigned char* key, int keyLen, int depth, IndexTuple* value) override;
+    IndexTuple* search(const unsigned char* key, int keyLen, int depth) const override;
 };
 
 // Function prototype: Bulk-load ART from sorted key/value pairs.
