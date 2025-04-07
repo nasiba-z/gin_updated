@@ -176,17 +176,23 @@ void EntryTree::splitChild(EntryTreeNode* parent, size_t i) {
 // -------------------------
 // Search Function: Look for a key in the tree.
 // -------------------------
-bool EntryTree::search(int32_t key) const {
+IndexTuple* EntryTree::search(int32_t key) const {
     EntryTreeNode* current = root;
     if (!current)
-        return false;
+        return nullptr;
+    // Traverse down the tree until we reach a leaf.
     while (!current->leaf) {
         size_t i = 0;
         while (i < current->keys.size() && key >= current->keys[i])
             i++;
         current = current->children[i];
     }
-    return std::find(current->keys.begin(), current->keys.end(), key) != current->keys.end();
+    // In the leaf, search for the key.
+    for (size_t i = 0; i < current->keys.size(); ++i) {
+        if (current->keys[i] == key)
+            return current->values[i];  // Return the IndexTuple pointer.
+    }
+    return nullptr;  // Key not found.
 }
 
 // -------------------------

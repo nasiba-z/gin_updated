@@ -7,7 +7,8 @@
 
 // Define a maximum capacity for an EntryTree leaf node.
 // (For simplicity, we use the same capacity for internal nodes.)
-// 20 keys to mimic fitting a index page of 8kB as in original GIN:20(21)=420(slightly less than 8000/(4+8)=666 key and pointers
+// 20 keys to mimic fitting a index page of 8kB as in original GIN:20(21)=420(slightly less than 8000/(4+8)=666 key 
+// and pointers
 constexpr size_t EntryLeafMaxCount = 20;
 
 // -------------------------------------------------------------------
@@ -52,7 +53,7 @@ public:
     void insert(int32_t key, IndexTuple* tuple);
 
     // Search for a key in the tree.
-    bool search(int32_t key) const;
+    IndexTuple* search(int32_t key) const;
 
     // Returns the total "size" of the tree (e.g. total number of keys).
     size_t getTotalSize() const;

@@ -6,10 +6,11 @@
 #include <cstddef>
 #include <cstdint>
 
+
 // Constants for posting tree segment sizes, in bytes.
-constexpr size_t GinPostingListSegmentMaxSize   = 80000;
-constexpr size_t GinPostingListSegmentTargetSize = 40000;
-constexpr size_t GinPostingListSegmentMinSize   = 24000;
+constexpr size_t GinPostingListSegmentMaxSize   =  40000;// 80000;
+constexpr size_t GinPostingListSegmentTargetSize = 30000;
+constexpr size_t GinPostingListSegmentMinSize   = 20000;//24000;
 
 // Derive target, max, and min TID counts per leaf node based on TID size.
 constexpr size_t LeafTargetCount = GinPostingListSegmentTargetSize / sizeof(TID);
@@ -59,7 +60,8 @@ public:
     // Helper: Build internal nodes (bottom-up) from a vector of child nodes.
     BTreeNode* buildInternalLevel(const std::vector<BTreeNode*>& children);
     void createFromVector(const std::vector<TID>& items);
-private:
+    std::vector<TID> getTIDs() const;
+    private:
     // Helper for incremental insertion: insert tid into a node assumed not to be full.
     void insertNonFull(BTreeNode* node, const TID& tid);
 

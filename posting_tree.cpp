@@ -3,6 +3,7 @@
 #include <cassert>
 #include <functional>
 #include <iostream>
+#include <queue>
 
 // ------------------------------------------------------------------
 // BTreeNode Implementation
@@ -211,4 +212,25 @@ void PostingTree::createFromVector(const std::vector<TID>& items) {
         insert(items[i]);
     }
    
+}
+
+// Helper function to traverse the tree and collect TIDs from leaf nodes.
+void collectTIDs(BTreeNode* node, std::vector<TID>& tids) {
+    if (!node) return;
+    if (node->leaf) {
+        // If the node is a leaf, add all its keys (TIDs) to the result.
+        tids.insert(tids.end(), node->keys.begin(), node->keys.end());
+    } else {
+        // If the node is not a leaf, recursively collect TIDs from its children.
+        for (BTreeNode* child : node->children) {
+            collectTIDs(child, tids);
+        }
+    }
+}
+
+// New no-argument version of getTIDs.
+std::vector<TID> PostingTree::getTIDs() const {
+    std::vector<TID> tids;
+    collectTIDs(root, tids);
+    return tids;
 }

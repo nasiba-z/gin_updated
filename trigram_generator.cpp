@@ -25,6 +25,28 @@ std::set<Trigram> trigram_generator(const std::string& input) {
     return trigrams;
 }
 
+// From a LIKE pattern (e.g. "%foo%ame%"), extract the literal segments and then
+// their trigrams. These are the trigrams that must appear in any candidate.
+std::set<Trigram> getRequiredTrigrams(const std::string &pattern) {
+    std::set<Trigram> required;
+    size_t pos = 0;
+    while (pos < pattern.size()) {
+        // Skip wildcard characters.
+        while (pos < pattern.size() && pattern[pos] == '%')
+            pos++;
+        if (pos >= pattern.size()) break;
+        // Find next wildcard position.
+        size_t start = pos;
+        while (pos < pattern.size() && pattern[pos] != '%')
+            pos++;
+        std::string segment = pattern.substr(start, pos - start);
+        // Extract trigrams for this literal segment.
+        auto segTrigrams = trigram_generator(segment);
+        required.insert(segTrigrams.begin(), segTrigrams.end());
+    }
+    return required;
+}
+
 // Implementation of trgm2int:
 // For each distinct trigram, pack its 3 characters into a 32-bit integer and return them in a vector.
 std::unique_ptr<TrigramArray> trgm2int(const std::string& input, int32_t* nentries) {

@@ -12,7 +12,7 @@ using Trigram = std::string;
 
 // This function takes an input string, pads it, and returns a set of distinct trigrams.
 std::set<Trigram> trigram_generator(const std::string& input);
-
+std::set<Trigram> getRequiredTrigrams(const std::string &pattern);
 // Type alias for Datum and TrigramArray.
 using Datum = int32_t;
 using TrigramArray = std::vector<Datum>;

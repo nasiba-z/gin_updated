@@ -11,28 +11,100 @@
 #include "trigram_generator.h"     // Contains trgm2int() function.
 #include "entry_tree.h"            // Contains EntryTree definition.
 #include "posting_tree.h"          // Contains PostingTree definition.
-
+#include <fstream>
 using namespace std;
 
+// --- Helper Functions for Candidate Retrieval ---
+
+// Pack a trigram string (assumed to be exactly 3 characters) into an int32_t,
+// using the same method as in trgm2int().
+int32_t packTrigram(const std::string &tri) {
+    if (tri.size() < 3) return 0;
+    uint32_t val = 0;
+    val |= static_cast<unsigned char>(tri[0]);
+    val <<= 8;
+    val |= static_cast<unsigned char>(tri[1]);
+    val <<= 8;
+    val |= static_cast<unsigned char>(tri[2]);
+    return static_cast<int32_t>(val);
+}
+
+
+// Given an IndexTuple, retrieve its posting list as a vector of TID.
+// This function checks if the posting list is inline; if not, it assumes that
+// PostingTree provides a method getTIDs() that returns a vector<TID>.
+vector<TID> getPostingList(IndexTuple* tup) {
+    vector<TID> result;
+    if (tup->postingList) {
+        result = tup->postingList->tids;
+    } else if (tup->postingTree) {
+        // Assume postingTree has a method getTIDs() that returns a vector<TID>.
+        result = tup->postingTree->getTIDs();
+    }
+    return result;
+}
+
+// Intersect multiple posting lists (each sorted by TID.rowId).
+vector<TID> intersectPostingLists(const vector<vector<TID>>& lists) {
+    if (lists.empty())
+        return {};
+
+    vector<TID> result = lists[0];
+    for (size_t i = 1; i < lists.size(); i++) {
+        vector<TID> temp;
+        std::set_intersection(result.begin(), result.end(),
+                              lists[i].begin(), lists[i].end(),
+                              back_inserter(temp),
+                              [](const TID &a, const TID &b) {
+                                  return a.rowId < b.rowId;
+                              });
+        result = std::move(temp);
+        if (result.empty())
+            break;
+    }
+    return result;
+}
+
 // Helper function to recursively print the entry tree.
-void printEntryTree(EntryTreeNode* node, int depth = 0) {
+void printEntryTree(EntryTreeNode* node, std::ostream& out, int depth = 0, bool isRoot = true) {
     if (!node) return;
+
     // Indentation for readability.
-    for (int i = 0; i < depth; i++) cout << "  ";
-    if (node->leaf) {
-        cout << "Leaf: ";
-        for (const auto &k : node->keys) {
-            cout << k << " ";
-        }
-        cout << "\n";
+    for (int i = 0; i < depth; i++) out << "  ";
+
+    // Print whether the node is the root, internal, or leaf.
+    if (isRoot) {
+        out << "Root: ";
+    } else if (node->leaf) {
+        out << "Leaf: ";
     } else {
-        cout << "Internal: ";
-        for (const auto &k : node->keys) {
-            cout << k << " ";
+        out << "Internal: ";
+    }
+
+    // Print the keys in the node.
+    for (const auto& k : node->keys) {
+        out << k << " ";
+    }
+    out << "\n";
+
+    // If it's a leaf node, print the associated values.
+    if (node->leaf) {
+        for (size_t i = 0; i < node->keys.size(); i++) {
+            for (int j = 0; j < depth + 1; j++) out << "  "; // Indentation
+            out << "Key " << node->keys[i] << " -> ";
+            if (i < node->values.size() && node->values[i]) {
+                out << "IndexTuple (key: " << node->values[i]->key << ")";
+            } else {
+                out << "No associated value";
+            }
+            out << "\n";
         }
-        cout << "\n";
+    }
+
+    // Recursively print the children for internal nodes.
+    if (!node->leaf) {
         for (auto child : node->children) {
-            printEntryTree(child, depth + 1);
+            printEntryTree(child, out, depth + 1, false);
         }
     }
 }
@@ -122,21 +194,21 @@ int main() {
     }
 
     // 8. Print the final IndexTuples.
-    for (const auto* tup : tuples) {
-        cout << "IndexTuple key: " << tup->key << "\n";
-        cout << "Posting Size (number of TIDs): " << tup->postingSize << "\n";
-        if (tup->postingList) {
-            // cout << "Inline Posting List TIDs: ";
-            // for (const auto& tid : tup->postingList->tids) {
-            //     cout << "(" << tid.rowId << ") ";
-            // }
-            // cout << "\n";
-        } else if (tup->postingTree) {
-            cout << "Posting tree present. Total tree size (simulated): " 
-                 << tup->postingTree->getTotalSize() << " bytes.\n";
-        }
-        cout << "-------------------------\n";
-    }
+    // for (const auto* tup : tuples) {
+    //     cout << "IndexTuple key: " << tup->key << "\n";
+    //     cout << "Posting Size (number of TIDs): " << tup->postingSize << "\n";
+    //     if (tup->postingList) {
+    //         // cout << "Inline Posting List TIDs: ";
+    //         // for (const auto& tid : tup->postingList->tids) {
+    //         //     cout << "(" << tid.rowId << ") ";
+    //         // }
+    //         // cout << "\n";
+    //     } else if (tup->postingTree) {
+    //         cout << "Posting tree present. Total tree size (simulated): " 
+    //              << tup->postingTree->getTotalSize() << " bytes.\n";
+    //     }
+    //     cout << "-------------------------\n";
+    // }
     cout << "Number of IndexTuples formed: " << tuples.size() << endl;
     // ---------------------------------------------------------------------
     // Additional Test: Build Posting Trees via Incremental Insertion.
@@ -196,13 +268,29 @@ int main() {
     EntryTree entryTree;
     entryTree.bulkLoad(sortedTuples);
     cout << "EntryTree built. Total keys in tree: " << entryTree.getTotalSize() << endl;
-    // Test: search for key 
-    if (!sortedTuples.empty()) {
-        int32_t searchKey = 7106423;
-        if (entryTree.search(searchKey))
-            cout << "Search for key " << searchKey << " succeeded." << endl;
-        else
-            cout << "Search for key " << searchKey << " failed." << endl;
+    // Save the EntryTree structure to a .txt file.
+    std::ofstream outFile("entry_tree_output.txt");
+    if (outFile.is_open()) {
+        outFile << "EntryTree structure:\n";
+        printEntryTree(entryTree.root, outFile);
+        outFile << "-------------------------\n";
+        outFile.close();
+        cout << "EntryTree structure saved to entry_tree_output.txt\n";
+    } else {
+        cerr << "Failed to open file for writing.\n";
+    }
+    string trigramStr = "smo";
+    int32_t searchKey = packTrigram(trigramStr);  // Pack "smo" into an int32_t key.
+    IndexTuple* foundTuple = entryTree.search(searchKey);
+
+    if (foundTuple) {
+        cout << "Found posting list for trigram \"" << trigramStr << "\" (key " << searchKey << "): ";
+        vector<TID> postingList = getPostingList(foundTuple);
+        for (const auto &tid : postingList)
+            cout << tid.rowId << " ";
+        cout << "\n";
+    } else {
+        cout << "No entry found for trigram \"" << trigramStr << "\" (key " << searchKey << ").\n";
     }
     // 10 Check that all leaves are at the same depth.
     vector<int> leafDepths;
@@ -215,6 +303,33 @@ int main() {
         cout << "All leaves are at depth " << expectedDepth 
              << (balanced ? " (balanced)" : " (not balanced)") << endl;
     }
+    /// --- Candidate Retrieval using the Gin Index (via EntryTree search) ---
+    string pattern = "%smo%blu%";
+    // Extract required trigrams from the pattern.
+    set<string> requiredTrigrams = getRequiredTrigrams(pattern);
+    vector<vector<TID>> postingLists;
+
+    for (const auto &tri : requiredTrigrams) {
+        int32_t key = packTrigram(tri);
+        // Use the entry tree search method to get the IndexTuple.
+        IndexTuple* tup = entryTree.search(key);
+        if (tup != nullptr) {
+            vector<TID> plist = getPostingList(tup);
+            postingLists.push_back(plist);
+        } else {
+            // If any required trigram is missing, no row can match.
+            postingLists.clear();
+            break;
+        }
+    }
+
+    // Intersect all posting lists to get candidate TIDs.
+    vector<TID> candidateTIDs = intersectPostingLists(postingLists);
+    cout << "\nCandidate row IDs for pattern \"" << pattern << "\":\n";
+    for (const auto &tid : candidateTIDs) {
+        cout << tid.rowId << " ";
+    }
+    cout << "\n";
 
     // 11. Cleanup: Delete all allocated IndexTuples and associated PostingTrees.
     for (auto* tup : tuples) {
