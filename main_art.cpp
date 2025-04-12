@@ -13,7 +13,7 @@
 #include "trigram_generator.h"     // Contains trigram_generator() function.
 #include "art.h"                   // Contains ART node classes.
 #include <fstream>
-
+#include <chrono>
 
 using namespace std;
 string vectorToString(const vector<unsigned char>& vec) {
@@ -442,8 +442,18 @@ void printRootKeys(ARTNode* root) {
         cout << endl;
     }
 }
+// Function to time the ART tree building process.
+void timeARTBuilding(const vector<pair<vector<unsigned char>, IndexTuple*>>& artItems) {
+    auto start = std::chrono::high_resolution_clock::now();
+    ARTNode* root = ART_bulkLoad(artItems, 0);      // Assuming depth starts at 0.  
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    cout << "Time taken to build ART tree: " << duration.count() << " micros." << endl;
+}  
 
 int main() {
+    // Record the start time.
+    auto start = std::chrono::high_resolution_clock::now();
     // 1. Read the database rows from file "part.tbl".
     vector<Row> database = read_db("part.tbl");
 
@@ -501,33 +511,33 @@ int main() {
         //     cout << "Inserted key: " << trigram << " with " << tids.size() << " TIDs." << endl;
         // }
     }
-    // 8. Print the final IndexTuples.
-    for (const auto* tup : tuples) {
-        cout << "IndexTuple key: " << tup->key << "\n";
-        cout << "Posting Size (number of TIDs): " << tup->postingSize << "\n";
-        if (tup->postingList) {
-            // cout << "Inline Posting List TIDs: ";
-            // for (const auto& tid : tup->postingList->tids) {
-            //     cout << "(" << tid.rowId << ") ";
-            // }
-            // cout << "\n";
-        } else if (tup->postingTree) {
-            cout << "Posting tree present. Total tree size (simulated): " 
-                 << tup->postingTree->getTotalSize() << " bytes.\n";
-        }
-        cout << "-------------------------\n";
-    }
-    cout << "Number of IndexTuples formed: " << tuples.size() << endl;
-    bool found = false;
-    for (const auto* tup : tuples) {
-        if (tup->key == "low") {
-            cout << "Found trigram \"low\" with posting size " << tup->postingSize << endl;
-            found = true;
-            break;
-        }
-    }
-    if (!found)
-        cout << "Trigram \"low\" not found." << endl;
+    // // 8. Print the final IndexTuples.
+    // for (const auto* tup : tuples) {
+    //     cout << "IndexTuple key: " << tup->key << "\n";
+    //     cout << "Posting Size (number of TIDs): " << tup->postingSize << "\n";
+    //     if (tup->postingList) {
+    //         // cout << "Inline Posting List TIDs: ";
+    //         // for (const auto& tid : tup->postingList->tids) {
+    //         //     cout << "(" << tid.rowId << ") ";
+    //         // }
+    //         // cout << "\n";
+    //     } else if (tup->postingTree) {
+    //         cout << "Posting tree present. Total tree size (simulated): " 
+    //              << tup->postingTree->getTotalSize() << " bytes.\n";
+    //     }
+    //     cout << "-------------------------\n";
+    // }
+    // cout << "Number of IndexTuples formed: " << tuples.size() << endl;
+    // bool found = false;
+    // for (const auto* tup : tuples) {
+    //     if (tup->key == "low") {
+    //         cout << "Found trigram \"low\" with posting size " << tup->postingSize << endl;
+    //         found = true;
+    //         break;
+    //     }
+    // }
+    // if (!found)
+    //     cout << "Trigram \"low\" not found." << endl;
 
     // 5. Convert the IndexTuples into ART items.
     // Each ART item is a pair: { key (vector<unsigned char>), value (IndexTuple*) }.
@@ -544,25 +554,32 @@ int main() {
         return p1.first < p2.first;
     });
 
+
     // 6. Bulk-load the ART tree using ART_bulkLoad.
     // The resulting ART tree maps each trigram (as a byte vector)
     // to the corresponding IndexTuple pointer (which holds the posting list/tree).
     ARTNode* artRoot = ART_bulkLoad(artItems, 0);
+    // Record the end time.
+    auto end = std::chrono::high_resolution_clock::now();
+    // Compute the elapsed time in seconds.
+    std::chrono::duration<double> elapsed = end - start;
+    std::cout << "Total execution time: " << elapsed.count() << " seconds." << std::endl;
+
     // ARTNode* artRoot = ART_bulkLoad(artItems, 0);
     cout << "ART tree built via bulk loading on " << artItems.size() << " unique trigrams." << endl;
 
     // Additional tests: search for some specific trigrams.
-    const vector<string> testTrigrams = {"cho", "yel", "low"};
-    for (const auto& tri : testTrigrams) {
-        vector<unsigned char> keyVec(tri.begin(), tri.end());
-        IndexTuple* foundTuple = artRoot->search(keyVec.data(), keyVec.size(), 0);
-        if (foundTuple ) {
-            cout << "Trigram \"" << tri << "\" found with posting size " << foundTuple->postingSize << endl;
-        } 
-        else {
-            cout << "Trigram \"" << tri << "\" not found." << endl;
-        }
-    }
+    // const vector<string> testTrigrams = {"cho", "yel", "low"};
+    // for (const auto& tri : testTrigrams) {
+    //     vector<unsigned char> keyVec(tri.begin(), tri.end());
+    //     IndexTuple* foundTuple = artRoot->search(keyVec.data(), keyVec.size(), 0);
+    //     if (foundTuple ) {
+    //         cout << "Trigram \"" << tri << "\" found with posting size " << foundTuple->postingSize << endl;
+    //     } 
+    //     else {
+    //         cout << "Trigram \"" << tri << "\" not found." << endl;
+    //     }
+    // }
     // 8. Print the current counts of each node type.
     //printRootKeys(artRoot);
     // Now print the entire ART tree.
@@ -589,6 +606,9 @@ int main() {
             delete tup->postingTree;
         delete tup;
     }
+    postingMap.clear();
+    sortedPostingMap.clear();
+    tuples.clear();
     delete artRoot;
     return 0;
 }

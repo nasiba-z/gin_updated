@@ -12,6 +12,7 @@
 #include "entry_tree.h"            // Contains EntryTree definition.
 #include "posting_tree.h"          // Contains PostingTree definition.
 #include <fstream>
+#include <chrono>
 using namespace std;
 
 // --- Helper Functions for Candidate Retrieval ---
@@ -29,6 +30,16 @@ int32_t packTrigram(const std::string &tri) {
     return static_cast<int32_t>(val);
 }
 
+// Maps row IDs to the full row text.
+map<int, string> rowData;
+
+// Returns the row text given a TID.
+string getRowText(const TID &tid) {
+    auto it = rowData.find(tid.rowId);
+    if (it != rowData.end())
+        return it->second;
+    return "";
+}
 
 // Given an IndexTuple, retrieve its posting list as a vector of TID.
 // This function checks if the posting list is inline; if not, it assumes that
@@ -108,6 +119,15 @@ void printEntryTree(EntryTreeNode* node, std::ostream& out, int depth = 0, bool 
         }
     }
 }
+// Time the entry tree building
+void timeEntryTreeBuilding(const vector<IndexTuple*>& tuples) {
+    auto start = std::chrono::high_resolution_clock::now();
+    EntryTree tree;
+    tree.bulkLoad(tuples);
+    auto end = std::chrono::high_resolution_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    cout << "Time taken to build EntryTree: " << elapsed.count() << " microseconds.\n";
+}
 
 // Helper function to compute the depth of leaves (should be same for all leaves)
 void computeLeafDepth(EntryTreeNode* node, int currentDepth, vector<int>& depths) {
@@ -121,6 +141,8 @@ void computeLeafDepth(EntryTreeNode* node, int currentDepth, vector<int>& depths
     }
 }
 int main() {
+     // Record the start time.
+     auto start = std::chrono::high_resolution_clock::now();
     // 1. Read the database rows from file "part.tbl".
     vector<Row> database = read_db("part.tbl");
 
@@ -133,7 +155,7 @@ int main() {
     }
 
     // 3. Create a GinState with desired parameters.
-    GinState state(true, 256); // Reduced maxItemSize for testing posting trees.
+    GinState state(true, 384); // Include inline posting list, 384 bytes for inline size. as part of ginstate to allow dynamic max size for inline posting.
 
     
 
@@ -264,9 +286,15 @@ int main() {
     // This separation of concerns (bulk-loading for static keys in the entry tree and a hybrid approach 
     // for large posting lists) is one of the key design decisions in the GIN index that allows it to be 
     // both efficient and scalable.
-
+    
+   
     EntryTree entryTree;
     entryTree.bulkLoad(sortedTuples);
+    // Record the end time.
+    auto end = std::chrono::high_resolution_clock::now();
+    // Compute the elapsed time in seconds.
+    std::chrono::duration<double> elapsed = end - start;
+    std::cout << "Total execution time: " << elapsed.count() << " seconds." << std::endl;
     cout << "EntryTree built. Total keys in tree: " << entryTree.getTotalSize() << endl;
     // Save the EntryTree structure to a .txt file.
     std::ofstream outFile("entry_tree_output.txt");
@@ -279,57 +307,76 @@ int main() {
     } else {
         cerr << "Failed to open file for writing.\n";
     }
-    string trigramStr = "smo";
-    int32_t searchKey = packTrigram(trigramStr);  // Pack "smo" into an int32_t key.
-    IndexTuple* foundTuple = entryTree.search(searchKey);
+    // string trigramStr = "smo";
+    // int32_t searchKey = packTrigram(trigramStr);  // Pack "smo" into an int32_t key.
+    // IndexTuple* foundTuple = entryTree.search(searchKey);
 
-    if (foundTuple) {
-        cout << "Found posting list for trigram \"" << trigramStr << "\" (key " << searchKey << "): ";
-        vector<TID> postingList = getPostingList(foundTuple);
-        for (const auto &tid : postingList)
-            cout << tid.rowId << " ";
-        cout << "\n";
-    } else {
-        cout << "No entry found for trigram \"" << trigramStr << "\" (key " << searchKey << ").\n";
-    }
+    // if (foundTuple) {
+    //     cout << "Found posting list for trigram \"" << trigramStr << "\" (key " << searchKey << "): ";
+    //     vector<TID> postingList = getPostingList(foundTuple);
+    //     for (const auto &tid : postingList)
+    //         cout << tid.rowId << " ";
+    //     cout << "\n";
+    // } else {
+    //     cout << "No entry found for trigram \"" << trigramStr << "\" (key " << searchKey << ").\n";
+    // }
     // 10 Check that all leaves are at the same depth.
-    vector<int> leafDepths;
-    computeLeafDepth(entryTree.root, 0, leafDepths);
-    if (!leafDepths.empty()) {
-        int expectedDepth = leafDepths.front();
-        bool balanced = all_of(leafDepths.begin(), leafDepths.end(), [expectedDepth](int d) {
-            return d == expectedDepth;
-        });
-        cout << "All leaves are at depth " << expectedDepth 
-             << (balanced ? " (balanced)" : " (not balanced)") << endl;
-    }
-    /// --- Candidate Retrieval using the Gin Index (via EntryTree search) ---
-    string pattern = "%smo%blu%";
-    // Extract required trigrams from the pattern.
-    set<string> requiredTrigrams = getRequiredTrigrams(pattern);
-    vector<vector<TID>> postingLists;
+    // vector<int> leafDepths;
+    // computeLeafDepth(entryTree.root, 0, leafDepths);
+    // if (!leafDepths.empty()) {
+    //     int expectedDepth = leafDepths.front();
+    //     bool balanced = all_of(leafDepths.begin(), leafDepths.end(), [expectedDepth](int d) {
+    //         return d == expectedDepth;
+    //     });
+    //     cout << "All leaves are at depth " << expectedDepth 
+    //          << (balanced ? " (balanced)" : " (not balanced)") << endl;
+    // }
+    // /// --- Candidate Retrieval using the Gin Index (via EntryTree search) ---
+    // Disabled for now. Uncomment the following code to enable candidate retrieval.
+    // string pattern = "%smo%blu%";
+    // // Extract required trigrams from the pattern.
+    // set<string> requiredTrigrams = getRequiredTrigrams(pattern);
+    // cout << "Required trigrams for pattern \"" << pattern << "\": ";
+    // for (const auto &tri : requiredTrigrams) {
+    //     cout << tri << " ";
+    // }
+    // cout << "\n";
 
-    for (const auto &tri : requiredTrigrams) {
-        int32_t key = packTrigram(tri);
-        // Use the entry tree search method to get the IndexTuple.
-        IndexTuple* tup = entryTree.search(key);
-        if (tup != nullptr) {
-            vector<TID> plist = getPostingList(tup);
-            postingLists.push_back(plist);
-        } else {
-            // If any required trigram is missing, no row can match.
-            postingLists.clear();
-            break;
-        }
-    }
+    // vector<vector<TID>> postingLists;
 
-    // Intersect all posting lists to get candidate TIDs.
-    vector<TID> candidateTIDs = intersectPostingLists(postingLists);
-    cout << "\nCandidate row IDs for pattern \"" << pattern << "\":\n";
-    for (const auto &tid : candidateTIDs) {
-        cout << tid.rowId << " ";
-    }
-    cout << "\n";
+    // for (const auto &tri : requiredTrigrams) {
+    //     int32_t key = packTrigram(tri);
+    //     // Use the entry tree search method to get the IndexTuple.
+    //     IndexTuple* tup = entryTree.search(key);
+    //     if (tup != nullptr) {
+    //         vector<TID> plist = getPostingList(tup);
+    //         postingLists.push_back(plist);
+    //     } else {
+    //         // If any required trigram is missing, no row can match.
+    //         postingLists.clear();
+    //         break;
+    //     }
+    // }
+
+    // // Intersect all posting lists to get candidate TIDs.
+    // vector<TID> candidateTIDs = intersectPostingLists(postingLists);
+    // // --- Final Verification: Check Order ("smo" comes before "blu") ---
+    // vector<TID> finalCandidates;
+    // for (const auto &tid : candidateTIDs) {
+    //     string text = getRowText(tid);
+    //     size_t posSmo = text.find("smo");
+    //     size_t posBlu = text.find("blu");
+    //     if (posSmo != string::npos && posBlu != string::npos && posSmo < posBlu) {
+    //         finalCandidates.push_back(tid);
+    //     }
+    // }
+    
+    // cout << "\nFinal candidate row IDs after order verification: ";
+    // for (const auto &tid : finalCandidates) {
+    //     cout << tid.rowId << " ";
+    // }
+    // cout << "\n";
+    
 
     // 11. Cleanup: Delete all allocated IndexTuples and associated PostingTrees.
     for (auto* tup : tuples) {
@@ -337,6 +384,13 @@ int main() {
             delete tup->postingTree;
         delete tup;
     }
-
+    postingMap.clear();
+    sortedPostingMap.clear();
+    tuples.clear();
+    // if (outFile.is_open()) {
+    //     outFile.close();
+    // }
+    // std::vector<int>().swap(leafDepths); // Clears and releases memory for leafDepths
+    std::cout.flush();
     return 0;
 }

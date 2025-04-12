@@ -34,18 +34,48 @@ std::set<Trigram> getRequiredTrigrams(const std::string &pattern) {
         // Skip wildcard characters.
         while (pos < pattern.size() && pattern[pos] == '%')
             pos++;
-        if (pos >= pattern.size()) break;
-        // Find next wildcard position.
+        if (pos >= pattern.size())
+            break;
         size_t start = pos;
         while (pos < pattern.size() && pattern[pos] != '%')
             pos++;
         std::string segment = pattern.substr(start, pos - start);
-        // Extract trigrams for this literal segment.
-        auto segTrigrams = trigram_generator(segment);
+        std::string cleaned = cleanString(segment);
+        
+        // Determine if we should pad on the left/right.
+        // If the character immediately before the literal is '%', do not pad left.
+        bool leftPad = true;
+        if (start > 0 && pattern[start - 1] == '%')
+            leftPad = false;
+        // If the character immediately after the literal is '%', do not pad right.
+        bool rightPad = true;
+        if (pos < pattern.size() && pattern[pos] == '%')
+            rightPad = false;
+        
+        std::string padded;
+        if (leftPad)
+            padded = "  " + cleaned;
+        else
+            padded = cleaned;
+        if (rightPad)
+            padded += "  ";
+        
+        // Extract trigrams from the padded string.
+        // (If the padded string is less than 3 characters, use it as is.)
+        std::set<Trigram> segTrigrams;
+        if (padded.size() < 3) {
+            if (!padded.empty())
+                segTrigrams.insert(padded);
+        } else {
+            for (size_t i = 0; i <= padded.size() - 3; ++i)
+                segTrigrams.insert(padded.substr(i, 3));
+        }
+        
         required.insert(segTrigrams.begin(), segTrigrams.end());
     }
     return required;
 }
+
 
 // Implementation of trgm2int:
 // For each distinct trigram, pack its 3 characters into a 32-bit integer and return them in a vector.

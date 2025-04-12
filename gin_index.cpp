@@ -62,7 +62,7 @@ IndexTuple* GinFormTuple(GinState* ginstate,
 
         // If the number of TIDs exceeds the inline threshold (LeafMaxCount),
         // convert the inline posting list into a posting tree.
-        if (postingData.size() > LeafMaxCount) {
+        if (postingData.size() > GinPostingListSegmentMaxSize) {
             // Create a new PostingTree.
             PostingTree* tree = new PostingTree();
             // Instead of bulk-loading, we mimic GIN's behavior by first filling
