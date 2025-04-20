@@ -13,6 +13,19 @@ GinPostingList* createGinPostingList(const std::vector<TID>& postingData) {
 }
 
 // ----------------------------------------------------------------
+// getPostingList: Retrieve the posting list from an IndexTuple.
+// This function checks if the posting list is available and returns it.
+std::vector<TID> getPostingList(IndexTuple* tup) {
+    std::vector<TID> result;
+    if (tup->postingList) {
+        result = tup->postingList->tids;
+    } else if (tup->postingTree) {
+        // Assume postingTree has a method getTIDs() that returns a vector<TID>.
+        result = tup->postingTree->getTIDs();
+    }
+    return result;
+}
+// ----------------------------------------------------------------
 // Implementation of addPostingList member function.
 // Instead of copying, we transfer ownership directly.
 void IndexTuple::addPostingList(const GinPostingList& plist) {
@@ -40,15 +53,17 @@ size_t IndexTuple::getTupleSize() const {
 }
 
 // ----------------------------------------------------------------
-// GinFormTuple: Create an IndexTuple from the given key and posting data.
+// GinFormTuple_ART: Create an IndexTuple from the given key and posting data,
+// optimized for the ART-backed posting tree.
+// ----------------------------------------------------------------
 IndexTuple* GinFormTuple_ART(GinState* ginstate,
     datum key,
     const std::vector<TID>& postingData,
     bool errorTooBig)
     {   // Ensure the key is not null
-        if (key.empty()) {
-            throw std::logic_error("Key cannot be null");
-        }
+        // if (key.empty()) {
+        //     throw std::logic_error("Key cannot be null");
+        // }
         // Create a new index tuple.
         IndexTuple* itup = new IndexTuple();
         // Set the key directly (no conversion needed).
@@ -70,7 +85,7 @@ IndexTuple* GinFormTuple_ART(GinState* ginstate,
             PostingTree* tree = new PostingTree();
             // Instead of bulk-loading, we mimic GIN's behavior by first filling
             // an inline portion and then inserting remaining TIDs incrementally.
-            tree->createFromVector(postingData);
+            tree->bulkLoad(postingData);
             // Store the posting tree pointer in the tuple.
             itup->postingTree = tree;
             itup->postingSize = postingData.size();
@@ -87,6 +102,6 @@ IndexTuple* GinFormTuple_ART(GinState* ginstate,
         itup->postingList.reset(inlineList);
         itup->postingSize = postingData.size();
         
-    }
+         } 
         return itup;
     }

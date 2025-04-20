@@ -20,7 +20,19 @@ void IndexTuple::addPostingList(const GinPostingList& plist) {
     // Since we are in-memory, we can simply use the copy constructor.
     postingList.reset(new GinPostingList(plist));
 }
-
+// ----------------------------------------------------------------
+// getPostingList: Retrieve the posting list from an IndexTuple.
+// This function checks if the posting list is available and returns it.
+std::vector<TID> getPostingList(IndexTuple* tup) {
+    std::vector<TID> result;
+    if (tup->postingList) {
+        result = tup->postingList->tids;
+    } else if (tup->postingTree) {
+        // Assume postingTree has a method getTIDs() that returns a vector<TID>.
+        result = tup->postingTree->getTIDs();
+    }
+    return result;
+}
 size_t IndexTuple::getTupleSize() const {
     // Compute the base size: size of key,  and postingSize.
     size_t baseSize = sizeof(key)  + sizeof(postingSize);
@@ -41,6 +53,8 @@ size_t IndexTuple::getTupleSize() const {
 
 // ----------------------------------------------------------------
 // GinFormTuple: Create an IndexTuple from the given key and posting data.
+// Uses bulkLoad() when the posting list is too large.
+// ----------------------------------------------------------------
 IndexTuple* GinFormTuple(GinState* ginstate,
     datum key,
     const std::vector<TID>& postingData,
@@ -67,7 +81,7 @@ IndexTuple* GinFormTuple(GinState* ginstate,
             PostingTree* tree = new PostingTree();
             // Instead of bulk-loading, we mimic GIN's behavior by first filling
             // an inline portion and then inserting remaining TIDs incrementally.
-            tree->createFromVector(postingData);
+            tree->bulkLoad(postingData);
             // Store the posting tree pointer in the tuple.
             itup->postingTree = tree;
             itup->postingSize = postingData.size();

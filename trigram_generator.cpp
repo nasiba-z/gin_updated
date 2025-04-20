@@ -2,6 +2,7 @@
 #include <sstream>
 #include <algorithm>
 #include <cctype>
+#include <unordered_set>
 #include <functional>
 #include <iostream>
 
@@ -27,55 +28,57 @@ std::set<Trigram> trigram_generator(const std::string& input) {
 
 // From a LIKE pattern (e.g. "%foo%ame%"), extract the literal segments and then
 // their trigrams. These are the trigrams that must appear in any candidate.
-std::set<Trigram> getRequiredTrigrams(const std::string &pattern) {
-    std::set<Trigram> required;
+std::vector<Trigram> getRequiredTrigrams(const std::string &pattern) {
+    std::vector<Trigram> ordered;            // result in pattern order
+    std::unordered_set<Trigram> seen;        // fast “already added?” check
     size_t pos = 0;
-    while (pos < pattern.size()) {
-        // Skip wildcard characters.
+    while (pos < pattern.size())
+    {
+        /* ---------- find next literal segment between % … % ------------ */
         while (pos < pattern.size() && pattern[pos] == '%')
-            pos++;
+            ++pos;
         if (pos >= pattern.size())
             break;
+
         size_t start = pos;
         while (pos < pattern.size() && pattern[pos] != '%')
-            pos++;
+            ++pos;
+
         std::string segment = pattern.substr(start, pos - start);
         std::string cleaned = cleanString(segment);
-        
-        // Determine if we should pad on the left/right.
-        // If the character immediately before the literal is '%', do not pad left.
-        bool leftPad = true;
-        if (start > 0 && pattern[start - 1] == '%')
-            leftPad = false;
-        // If the character immediately after the literal is '%', do not pad right.
-        bool rightPad = true;
-        if (pos < pattern.size() && pattern[pos] == '%')
-            rightPad = false;
-        
-        std::string padded;
-        if (leftPad)
-            padded = "  " + cleaned;
-        else
-            padded = cleaned;
-        if (rightPad)
-            padded += "  ";
-        
-        // Extract trigrams from the padded string.
-        // (If the padded string is less than 3 characters, use it as is.)
-        std::set<Trigram> segTrigrams;
-        if (padded.size() < 3) {
-            if (!padded.empty())
-                segTrigrams.insert(padded);
-        } else {
-            for (size_t i = 0; i <= padded.size() - 3; ++i)
-                segTrigrams.insert(padded.substr(i, 3));
+
+        /* ---------- decide padding (same logic you had) ----------------- */
+        bool leftPad  = !(start > 0               && pattern[start - 1] == '%');
+        bool rightPad = !(pos   < pattern.size()  && pattern[pos]      == '%');
+
+        std::string padded = (leftPad ? "  " : "") + cleaned + (rightPad ? "  " : "");
+
+        /* ---------- extract trigrams in *text* order -------------------- */
+        if (padded.size() < 3)          // too short ⇒ no trigram can be forced
+            continue;
+
+        for (size_t i = 0; i + 3 <= padded.size(); ++i)
+        {
+            Trigram tri = padded.substr(i, 3);
+            if (seen.insert(tri).second)        // first time we see it
+                ordered.push_back(std::move(tri));
         }
-        
-        required.insert(segTrigrams.begin(), segTrigrams.end());
     }
-    return required;
+    return ordered;      // <‑‑ preserves left‑to‑right order
 }
 
+// Pack a trigram string (assumed to be exactly 3 characters) into an int32_t,
+// using the same method as in trgm2int().
+int32_t packTrigram(const std::string &tri) {
+    if (tri.size() < 3) return 0;
+    uint32_t val = 0;
+    val |= static_cast<unsigned char>(tri[0]);
+    val <<= 8;
+    val |= static_cast<unsigned char>(tri[1]);
+    val <<= 8;
+    val |= static_cast<unsigned char>(tri[2]);
+    return static_cast<int32_t>(val);
+}
 
 // Implementation of trgm2int:
 // For each distinct trigram, pack its 3 characters into a 32-bit integer and return them in a vector.

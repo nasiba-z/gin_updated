@@ -9,13 +9,13 @@
 
 // Type alias for a trigram: a simple string (we assume trigrams are 3-character sequences).
 using Trigram = std::string;
-
-// This function takes an input string, pads it, and returns a set of distinct trigrams.
-std::set<Trigram> trigram_generator(const std::string& input);
-std::set<Trigram> getRequiredTrigrams(const std::string &pattern);
-// Type alias for Datum and TrigramArray.
 using Datum = int32_t;
 using TrigramArray = std::vector<Datum>;
+// This function takes an input string, pads it, and returns a set of distinct trigrams.
+std::set<Trigram> trigram_generator(const std::string& input);
+std::vector<Trigram> getRequiredTrigrams(const std::string &pattern);
+int32_t packTrigram(const std::string &tri);
+
 
 // This function converts trigrams into integers using bit‐packing logic.
 // It returns a unique_ptr to a vector of Datum (i.e. 32‑bit integers).

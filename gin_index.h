@@ -95,5 +95,6 @@ IndexTuple* GinFormTuple(GinState* ginstate,
 
 // Declaration of createGinPostingList: builds an in-memory posting list from postingData.
 GinPostingList* createGinPostingList(const std::vector<TID>& postingData);
+std::vector<TID> getPostingList(IndexTuple* tup);
 
 #endif // GIN_INDEX_H

@@ -14,7 +14,8 @@
 #include "art.h"                   // Contains ART node classes.
 #include <fstream>
 #include <chrono>
-
+#include "postinglist_utils.h"    // Contains intersectPostingLists() function.
+#include "pattern_match.h"
 using namespace std;
 string vectorToString(const vector<unsigned char>& vec) {
     return string(vec.begin(), vec.end());
@@ -109,264 +110,7 @@ void printART(ARTNode* node, std::ostream& out, int indent = 0) {
         }
     }
 }
-// Recursively calculates the maximum depth of the ART.
-// Depth is defined as the number of nodes from the root to the deepest leaf.
-int calculateDepth(ARTNode* node) {
-    if (!node)
-        return 0;
-    
-    // If this is a leaf, depth is 1.
-    if (node->type == NodeType::LEAF)
-        return 1;
-    
-    int maxChildDepth = 0;
-    
-    switch (node->type) {
-        case NodeType::NODE4: {
-            ARTNode4* n4 = static_cast<ARTNode4*>(node);
-            for (int i = 0; i < n4->count; i++) {
-                int childDepth = calculateDepth(n4->children[i]);
-                if (childDepth > maxChildDepth)
-                    maxChildDepth = childDepth;
-            }
-            break;
-        }
-        case NodeType::NODE16: {
-            ARTNode16* n16 = static_cast<ARTNode16*>(node);
-            for (int i = 0; i < n16->count; i++) {
-                int childDepth = calculateDepth(n16->children[i]);
-                if (childDepth > maxChildDepth)
-                    maxChildDepth = childDepth;
-            }
-            break;
-        }
-        case NodeType::NODE48: {
-            ARTNode48* n48 = static_cast<ARTNode48*>(node);
-            // Assuming an unused slot in childIndex is marked with 255.
-            for (int i = 0; i < 256; i++) {
-                if (n48->childIndex[i] != 255) {
-                    int childPos = n48->childIndex[i];
-                    int childDepth = calculateDepth(n48->children[childPos]);
-                    if (childDepth > maxChildDepth)
-                        maxChildDepth = childDepth;
-                }
-            }
-            break;
-        }
-        case NodeType::NODE256: {
-            ARTNode256* n256 = static_cast<ARTNode256*>(node);
-            for (int i = 0; i < 256; i++) {
-                if (n256->children[i] != nullptr) {
-                    int childDepth = calculateDepth(n256->children[i]);
-                    if (childDepth > maxChildDepth)
-                        maxChildDepth = childDepth;
-                }
-            }
-            break;
-        }
-        default:
-            break;
-    }
-    
-    
-    return 1 + maxChildDepth;
-}
 
-void traverseART(ARTNode* node, map<string, int>& counts) {
-    if (!node)
-        return;
-
-    // Determine the node type using the NodeType enum stored in the base class.
-    string typeStr;
-    switch (node->type) {
-        case NodeType::NODE4:
-            typeStr = "Node4";
-            break;
-        case NodeType::NODE16:
-            typeStr = "Node16";
-            break;
-        case NodeType::NODE48:
-            typeStr = "Node48";
-            break;
-        case NodeType::NODE256:
-            typeStr = "Node256";
-            break;
-        case NodeType::LEAF:
-            typeStr = "Leaf";
-            break;
-        default:
-            typeStr = "Unknown";
-            break;
-    }
-    counts[typeStr]++;
-
-    // If it's a leaf, there are no children to traverse.
-    if (node->type == NodeType::LEAF)
-        return;
-
-    // Traverse children according to the node type.
-    if (node->type == NodeType::NODE4) {
-        ARTNode4* n4 = static_cast<ARTNode4*>(node);
-        // For Node4, the valid children are stored in the first n4->count slots.
-        for (int i = 0; i < n4->count; i++) {
-            traverseART(n4->children[i], counts);
-        }
-    } else if (node->type == NodeType::NODE16) {
-        ARTNode16* n16 = static_cast<ARTNode16*>(node);
-        // For Node16, iterate over the first n16->count entries.
-        for (int i = 0; i < n16->count; i++) {
-            traverseART(n16->children[i], counts);
-        }
-    } else if (node->type == NodeType::NODE48) {
-        ARTNode48* n48 = static_cast<ARTNode48*>(node);
-        // For Node48, iterate over all 256 possible slots.
-        // Assume that an unused slot is marked with 255.
-        for (int i = 0; i < 256; i++) {
-            if (n48->childIndex[i] != 255) {
-                int childPos = n48->childIndex[i];
-                traverseART(n48->children[childPos], counts);
-            }
-        }
-    } else if (node->type == NodeType::NODE256) {
-        ARTNode256* n256 = static_cast<ARTNode256*>(node);
-        // For Node256, iterate over all 256 child pointers.
-        for (int i = 0; i < 256; i++) {
-            if (n256->children[i] != nullptr) {
-                traverseART(n256->children[i], counts);
-            }
-        }
-    }
-}
-
-void printNonRootNode256(ARTNode* node, bool isRoot) {
-    if (!node)
-        return;
-
-    // If the current node is a Node256 and it's not the root, print its details.
-    if (node->type == NodeType::NODE256 && !isRoot) {
-        ARTNode256* n256 = static_cast<ARTNode256*>(node);
-        cout << "Non-root Node256 found with prefix: \"" 
-             << vectorToString(node->prefix) << "\" (prefixLen = " 
-             << node->prefixLen << ")" << endl;
-        cout << "Children keys in this Node256: ";
-        for (int i = 0; i < 256; i++) {
-            if (n256->children[i] != nullptr) {
-                cout << i << " ";
-            }
-        }
-        cout << "\n-----------------------" << endl;
-    }
-
-    // Now, recursively traverse the children based on the node type.
-    if (node->type == NodeType::NODE4) {
-        ARTNode4* n4 = static_cast<ARTNode4*>(node);
-        for (int i = 0; i < n4->count; i++) {
-            printNonRootNode256(n4->children[i], false);
-        }
-    } else if (node->type == NodeType::NODE16) {
-        ARTNode16* n16 = static_cast<ARTNode16*>(node);
-        for (int i = 0; i < n16->count; i++) {
-            printNonRootNode256(n16->children[i], false);
-        }
-    } else if (node->type == NodeType::NODE48) {
-        ARTNode48* n48 = static_cast<ARTNode48*>(node);
-        // For Node48, iterate over all 256 possible key bytes.
-        // Here we assume that an unused entry in childIndex is marked with 255.
-        for (int i = 0; i < 256; i++) {
-            if (n48->childIndex[i] != 255) {
-                int childPos = n48->childIndex[i];
-                printNonRootNode256(n48->children[childPos], false);
-            }
-        }
-    } else if (node->type == NodeType::NODE256) {
-        ARTNode256* n256 = static_cast<ARTNode256*>(node);
-        for (int i = 0; i < 256; i++) {
-            if (n256->children[i] != nullptr) {
-                printNonRootNode256(n256->children[i], false);
-            }
-        }
-    }
-    // Leaves have no children.
-}
-
-// Helper function to print the node type counts.
-void printNodeCounts(ARTNode* root) {
-    map<string, int> counts;
-    traverseART(root, counts);
-    cout << "Current ART Node counts:" << endl;
-    for (const auto& kv : counts) {
-        cout << "  " << kv.first << ": " << kv.second << endl;
-    }
-    cout << "-------------------------" << endl;
-}
-
-
-// This function recursively traverses the ART tree and prints details only for nodes of type Node48.
-void printNode48Details(ARTNode* node) {
-    if (!node)
-        return;
-
-    // If the current node is of type Node48, print its details.
-    if (node->type == NodeType::NODE48) {
-        ARTNode48* n48 = static_cast<ARTNode48*>(node);
-        cout << "Found Node48 with prefix: \"" << vectorToString(node->prefix)
-             << "\" (prefixLen = " << node->prefixLen << ")" << endl;
-        // Iterate over all 256 possible key bytes.
-        // We assume that an unused slot in childIndex is marked with 0xFF.
-        for (int i = 0; i < 256; i++) {
-            if (n48->childIndex[i] != 0xFF) {
-                int childPos = n48->childIndex[i];
-                cout << "  Child at key byte [" << i << "]: ";
-                ARTNode* child = n48->children[childPos];
-                if (child->type == NodeType::LEAF) {
-                    ARTLeaf* leaf = static_cast<ARTLeaf*>(child);
-                    cout << "Leaf with full key: \"" << vectorToString(leaf->fullKey) << "\"" << endl;
-                } else {
-                    string innerType;
-                    switch (child->type) {
-                        case NodeType::NODE4:   innerType = "Node4"; break;
-                        case NodeType::NODE16:  innerType = "Node16"; break;
-                        case NodeType::NODE48:  innerType = "Node48"; break;
-                        case NodeType::NODE256: innerType = "Node256"; break;
-                        default:                innerType = "Unknown"; break;
-                    }
-                    cout << innerType << " with prefix: \"" << vectorToString(child->prefix) << "\"" << endl;
-                }
-            }
-        }
-        cout << "--------------------------------" << endl;
-    }
-
-    // Recursively traverse children regardless of node type.
-    if (node->type == NodeType::NODE4) {
-        ARTNode4* n4 = static_cast<ARTNode4*>(node);
-        for (int i = 0; i < n4->count; i++) {
-            printNode48Details(n4->children[i]);
-        }
-    } else if (node->type == NodeType::NODE16) {
-        ARTNode16* n16 = static_cast<ARTNode16*>(node);
-        for (int i = 0; i < n16->count; i++) {
-            printNode48Details(n16->children[i]);
-        }
-    } else if (node->type == NodeType::NODE48) {
-        ARTNode48* n48 = static_cast<ARTNode48*>(node);
-        // Traverse all children of the Node48.
-        for (int i = 0; i < 256; i++) {
-            if (n48->childIndex[i] != 0xFF) {
-                int childPos = n48->childIndex[i];
-                printNode48Details(n48->children[childPos]);
-            }
-        }
-    } else if (node->type == NodeType::NODE256) {
-        ARTNode256* n256 = static_cast<ARTNode256*>(node);
-        for (int i = 0; i < 256; i++) {
-            if (n256->children[i] != nullptr) {
-                printNode48Details(n256->children[i]);
-            }
-        }
-    }
-    // Leaves have no children.
-}
 
 void printRootKeys(ARTNode* root) {
     if (!root) {
@@ -457,34 +201,32 @@ void warmUpCache(const std::string& filename) {
 }
 int main() {
     // Warm up the cache by reading a file into memory.
-    warmUpCache("partsf10.tbl");
+    warmUpCache("part.tbl");
     // Record the start time.
     auto start = std::chrono::high_resolution_clock::now();
     // 1. Read the database rows from file "part.tbl".
-    vector<Row> database = read_db("partsf10.tbl");
+    vector<Row> database = read_db("part.tbl");
 
     // 2. Transform the database rows into TableRow format.
     vector<TableRow> table;
+    unordered_map<int, string> rowData;
     for (const auto& row : database) {
         int id = std::get<0>(row);          // p_partkey
         string data = std::get<1>(row);       // p_name
         table.push_back({id, data});
+        rowData[id] = data; 
     }
 
     // 3. Aggregate posting data by trigram key.
     // We build a map from trigram (string) to a vector of TIDs.
     unordered_map<string, vector<TID>> postingMap;
-    int processedRows = 0;
     for (const auto& trow : table) {
         // Assume trigram_generator returns a set<string> of unique trigrams for the row.
         set<string> trigramSet = trigram_generator(trow.data);
         for (const auto& tri : trigramSet) {
             postingMap[tri].push_back(TID(trow.id));
         }
-        processedRows++;
-        // if (processedRows % 10000 == 0) {
-        //     cout << "Processed " << processedRows << " rows." << endl;
-        // }
+      
     }
     
     cout << "Number of unique trigrams: " << postingMap.size() << endl;
@@ -510,44 +252,7 @@ int main() {
         IndexTuple* tup = GinFormTuple_ART(&state, trigram, tids, true);
         if (tup != nullptr)
             tuples.push_back(tup);
-        // Print a counter each 1000th key
-        static int counter = 0;
-        counter++;
-        // if (counter % 1000 == 0) {
-        //     cout << "Inserted key: " << trigram << " with " << tids.size() << " TIDs." << endl;
-        // }
     }
-    // // 8. Print the final IndexTuples.
-    // for (const auto* tup : tuples) {
-    //     cout << "IndexTuple key: " << tup->key << "\n";
-    //     cout << "Posting Size (number of TIDs): " << tup->postingSize << "\n";
-    //     if (tup->postingList) {
-    //         // cout << "Inline Posting List TIDs: ";
-    //         // for (const auto& tid : tup->postingList->tids) {
-    //         //     cout << "(" << tid.rowId << ") ";
-    //         // }
-    //         // cout << "\n";
-    //     } else if (tup->postingTree) {
-    //         cout << "Posting tree present. Total tree size (simulated): " 
-    //              << tup->postingTree->getTotalSize() << " bytes.\n";
-    //     }
-    //     cout << "-------------------------\n";
-    // }
-    // cout << "Number of IndexTuples formed: " << tuples.size() << endl;
-    // bool found = false;
-    // for (const auto* tup : tuples) {
-    //     if (tup->key == "low") {
-    //         cout << "Found trigram \"low\" with posting size " << tup->postingSize << endl;
-    //         found = true;
-    //         break;
-    //     }
-    // }
-    // if (!found)
-    //     cout << "Trigram \"low\" not found." << endl;
-
-    // 5. Convert the IndexTuples into ART items.
-    // Each ART item is a pair: { key (vector<unsigned char>), value (IndexTuple*) }.
-    // We convert the trigram string (tup->key) into a vector of unsigned char.
     vector<pair<vector<unsigned char>, IndexTuple*>> artItems;
     for (const auto* tup : tuples) {
         // Here we assume tup->key is a string.
@@ -571,30 +276,53 @@ int main() {
     std::chrono::duration<double> elapsed = end - start;
     std::cout << "Total execution time: " << elapsed.count() << " seconds." << std::endl;
 
-    // ARTNode* artRoot = ART_bulkLoad(artItems, 0);
     cout << "ART tree built via bulk loading on " << artItems.size() << " unique trigrams." << endl;
 
-    // Additional tests: search for some specific trigrams.
-    // const vector<string> testTrigrams = {"cho", "yel", "low"};
-    // for (const auto& tri : testTrigrams) {
-    //     vector<unsigned char> keyVec(tri.begin(), tri.end());
-    //     IndexTuple* foundTuple = artRoot->search(keyVec.data(), keyVec.size(), 0);
-    //     if (foundTuple ) {
-    //         cout << "Trigram \"" << tri << "\" found with posting size " << foundTuple->postingSize << endl;
-    //     } 
-    //     else {
-    //         cout << "Trigram \"" << tri << "\" not found." << endl;
-    //     }
-    // }
-    // 8. Print the current counts of each node type.
-    //printRootKeys(artRoot);
-    // Now print the entire ART tree.
-    // cout << "Printing ART tree:" << endl;
-    // printART(artRoot);
-    // int depth = calculateDepth(artRoot); // TO DO : need to fix this
-    // std::cout << "The maximum depth of the ART is: " << depth << std::endl;
-    // printNodeCounts(artRoot);
-    //printNode48Details(artRoot);
+     // --- Candidate Retrieval using the Gin Index (via EntryTree search) ---
+    // Disabled for now. Uncomment the following code to enable candidate retrieval.
+    string pattern = "%hon%hot%";
+    // Extract required trigrams from the pattern.
+    std::vector<Trigram> requiredTrigrams = getRequiredTrigrams(pattern);
+    vector<vector<TID>> postingLists;
+    for (const auto &tri : requiredTrigrams) {
+        // Use the entry tree search method to get the IndexTuple.
+        std::vector<unsigned char> keyBytes(tri.begin(), tri.end());
+
+        IndexTuple* tup = artRoot->search(keyBytes.data(),
+        static_cast<int>(keyBytes.size()),
+        /*depth*/ 0);
+        if (tup != nullptr) {
+            vector<TID> plist = getPostingList(tup);
+            postingLists.push_back(plist);
+        } else {
+            // If any required trigram is missing, no row can match.
+            postingLists.clear();
+            break;
+        }
+    }
+
+    // Intersect all posting lists to get candidate TIDs.
+    vector<TID> candidateTIDs = intersectPostingLists(postingLists);
+    cout<< "Candidate TIDs: ";
+    for (const TID& tid : candidateTIDs) {
+        cout << tid.rowId << " ";
+    }
+    std::vector<TID> finalTIDs;
+    for (const TID& tid : candidateTIDs)
+    {
+        std::string text = getRowText(tid);   // fetch p_name, etc.
+        // Check if the text matches the pattern and if the literals appear in order.
+        // cout << "Checking text: " << text << "\n";
+
+        if (literalsAppearInOrder(text, requiredTrigrams))
+            finalTIDs.push_back(tid);
+    }
+
+    /* report -------------------------------------------------------- */
+    std::cout << "Rows matching pattern \"" << pattern << "\": ";
+    for (const TID& tid : finalTIDs)
+        std::cout << tid.rowId << ' ';
+    std::cout << '\n';
     // 9. Cleanup.
     std::ofstream outFile("art_tree_output.txt");
     if (outFile.is_open()) {
@@ -602,7 +330,7 @@ int main() {
         printART(artRoot, outFile);
         outFile << "-------------------------\n";
         outFile.close();
-        cout << "EntryTree structure saved to entry_tree_output.txt\n";
+        cout << "EntryTree structure saved to art_tree_output.txt\n";
     } else {
         cerr << "Failed to open file for writing.\n";
     }
@@ -612,9 +340,9 @@ int main() {
             delete tup->postingTree;
         delete tup;
     }
-    postingMap.clear();
-    sortedPostingMap.clear();
-    tuples.clear();
+    // postingMap.clear();
+    // sortedPostingMap.clear();
+    // tuples.clear();
     delete artRoot;
     return 0;
 }
