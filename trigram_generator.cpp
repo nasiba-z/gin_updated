@@ -6,25 +6,58 @@
 #include <functional>
 #include <iostream>
 
-// Helper function: cleans the input string (keeping only alphanumeric and space characters).
-static std::string cleanString(const std::string& input) {
-    std::string output;
-    std::copy_if(input.begin(), input.end(), std::back_inserter(output), [](char c) {
-        return std::isalnum(static_cast<unsigned char>(c)) || std::isspace(static_cast<unsigned char>(c));
-    });
-    return output;
+// // Helper function: cleans the input string (keeping only alphanumeric and space characters).
+// static std::string cleanString(const std::string& input) {
+//     std::string output;
+//     std::copy_if(input.begin(), input.end(), std::back_inserter(output), [](char c) {
+//         return std::isalnum(static_cast<unsigned char>(c)) || std::isspace(static_cast<unsigned char>(c));
+//     });
+//     return output;
+// }
+
+std::string normalize(const std::string& in)
+{
+    std::string out;
+    bool lastWasSpace = false;
+    for (unsigned char c : in)
+    {
+        if (std::isalnum(c))
+        {
+            out.push_back(std::tolower(c));
+            lastWasSpace = false;
+        }
+        else if (std::isspace(c) && !lastWasSpace)
+        {
+            out.push_back(' ');
+            lastWasSpace = true;
+        }
+        /* else skip char */
+    }
+    // trim leading/trailing blanks
+    if (!out.empty() && out.front() == ' ') out.erase(out.begin());
+    if (!out.empty() && out.back()  == ' ') out.pop_back();
+    return out;
 }
 
 // Implementation of trigram_generator:
 // Pads the cleaned input with two spaces at the beginning and end, then extracts all 3-character substrings.
-std::set<Trigram> trigram_generator(const std::string& input) {
-    std::set<Trigram> trigrams;
-    std::string cleaned = cleanString(input);
-    std::string padded = "  " + cleaned + "  ";
-    for (size_t i = 0; i <= padded.size() - 3; ++i)
-        trigrams.insert(padded.substr(i, 3));
-    return trigrams;
+std::set<std::string> trigram_generator(const std::string& input)
+{
+    std::set<std::string> res;
+    std::string txt = normalize(input);
+
+    std::istringstream iss(txt);
+    std::string word;
+    while (iss >> word)
+    {
+        std::string padded = "  " + word + " ";
+        for (size_t i = 0; i + 2 < padded.size(); ++i)
+            res.insert(padded.substr(i,3));
+    }
+    return res;
 }
+
+
 
 // From a LIKE pattern (e.g. "%foo%ame%"), extract the literal segments and then
 // their trigrams. These are the trigrams that must appear in any candidate.
@@ -45,7 +78,7 @@ std::vector<Trigram> getRequiredTrigrams(const std::string &pattern) {
             ++pos;
 
         std::string segment = pattern.substr(start, pos - start);
-        std::string cleaned = cleanString(segment);
+        std::string cleaned = normalize(segment);
 
         /* ---------- decide padding (same logic you had) ----------------- */
         bool leftPad  = !(start > 0               && pattern[start - 1] == '%');

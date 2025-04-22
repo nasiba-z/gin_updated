@@ -98,10 +98,10 @@ void warmUpCache(const std::string& filename) {
 }
 int main() {
      // Record the start time.
-    warmUpCache("part.tbl");
+    warmUpCache("partsf10.tbl");
     auto start = std::chrono::high_resolution_clock::now();
     // 1. Read the database rows from file "part.tbl".
-    vector<Row> database = read_db("part.tbl");
+    vector<Row> database = read_db("partsf10.tbl");
 
     // 2. Transform the database rows into TableRow format.
     vector<TableRow> table;
@@ -215,44 +215,44 @@ int main() {
     
     // --- Candidate Retrieval using the Gin Index (via EntryTree search) ---
     // Disabled for now. Uncomment the following code to enable candidate retrieval.
-    string pattern = "%hon%hot%";
-    // Extract required trigrams from the pattern.
-    std::vector<Trigram> requiredTrigrams = getRequiredTrigrams(pattern);
+    // string pattern = "%hon%hot%";
+    // // Extract required trigrams from the pattern.
+    // std::vector<Trigram> requiredTrigrams = getRequiredTrigrams(pattern);
 
-    vector<vector<TID>> postingLists;
+    // vector<vector<TID>> postingLists;
 
-    for (const auto &tri : requiredTrigrams) {
-        int32_t key = packTrigram(tri);
-        // Use the entry tree search method to get the IndexTuple.
-        IndexTuple* tup = entryTree.search(key);
-        if (tup != nullptr) {
-            vector<TID> plist = getPostingList(tup);
-            postingLists.push_back(plist);
-        } else {
-            // If any required trigram is missing, no row can match.
-            postingLists.clear();
-            break;
-        }
-    }
+    // for (const auto &tri : requiredTrigrams) {
+    //     int32_t key = packTrigram(tri);
+    //     // Use the entry tree search method to get the IndexTuple.
+    //     IndexTuple* tup = entryTree.search(key);
+    //     if (tup != nullptr) {
+    //         vector<TID> plist = getPostingList(tup);
+    //         postingLists.push_back(plist);
+    //     } else {
+    //         // If any required trigram is missing, no row can match.
+    //         postingLists.clear();
+    //         break;
+    //     }
+    // }
 
-    // Intersect all posting lists to get candidate TIDs.
-    vector<TID> candidateTIDs = intersectPostingLists(postingLists);
-       std::vector<TID> finalTIDs;
-    for (const TID& tid : candidateTIDs)
-    {
-        std::string text = getRowText(tid);   // fetch p_name, etc.
-        // Check if the text matches the pattern and if the literals appear in order.
-        cout << "Checking text: " << text << "\n";
+    // // Intersect all posting lists to get candidate TIDs.
+    // vector<TID> candidateTIDs = intersectPostingLists(postingLists);
+    //    std::vector<TID> finalTIDs;
+    // for (const TID& tid : candidateTIDs)
+    // {
+    //     std::string text = getRowText(tid);   // fetch p_name, etc.
+    //     // Check if the text matches the pattern and if the literals appear in order.
+    //     cout << "Checking text: " << text << "\n";
 
-        if (literalsAppearInOrder(text, requiredTrigrams))
-            finalTIDs.push_back(tid);
-    }
+    //     if (literalsAppearInOrder(text, requiredTrigrams))
+    //         finalTIDs.push_back(tid);
+    // }
 
-    /* report -------------------------------------------------------- */
-    std::cout << "Rows matching pattern \"" << pattern << "\": ";
-    for (const TID& tid : finalTIDs)
-        std::cout << tid.rowId << ' ';
-    std::cout << '\n';
+    // /* report -------------------------------------------------------- */
+    // std::cout << "Rows matching pattern \"" << pattern << "\": ";
+    // for (const TID& tid : finalTIDs)
+    //     std::cout << tid.rowId << ' ';
+    // std::cout << '\n';
         
 
     // 11. Cleanup: Delete all allocated IndexTuples and associated PostingTrees.
@@ -263,6 +263,7 @@ int main() {
     }
     postingMap.clear();
     sortedPostingMap.clear();
+
     tuples.clear();
     // if (outFile.is_open()) {
     //     outFile.close();

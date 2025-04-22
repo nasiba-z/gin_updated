@@ -201,7 +201,7 @@ void warmUpCache(const std::string& filename) {
 }
 int main() {
     // Warm up the cache by reading a file into memory.
-    warmUpCache("part.tbl");
+    warmUpCache("partsf10.tbl");
     // Record the start time.
     auto start = std::chrono::high_resolution_clock::now();
     // 1. Read the database rows from file "part.tbl".
@@ -280,49 +280,49 @@ int main() {
 
      // --- Candidate Retrieval using the Gin Index (via EntryTree search) ---
     // Disabled for now. Uncomment the following code to enable candidate retrieval.
-    string pattern = "%hon%hot%";
-    // Extract required trigrams from the pattern.
-    std::vector<Trigram> requiredTrigrams = getRequiredTrigrams(pattern);
-    vector<vector<TID>> postingLists;
-    for (const auto &tri : requiredTrigrams) {
-        // Use the entry tree search method to get the IndexTuple.
-        std::vector<unsigned char> keyBytes(tri.begin(), tri.end());
+    // string pattern = "%hon%hot%";
+    // // Extract required trigrams from the pattern.
+    // std::vector<Trigram> requiredTrigrams = getRequiredTrigrams(pattern);
+    // vector<vector<TID>> postingLists;
+    // for (const auto &tri : requiredTrigrams) {
+    //     // Use the entry tree search method to get the IndexTuple.
+    //     std::vector<unsigned char> keyBytes(tri.begin(), tri.end());
 
-        IndexTuple* tup = artRoot->search(keyBytes.data(),
-        static_cast<int>(keyBytes.size()),
-        /*depth*/ 0);
-        if (tup != nullptr) {
-            vector<TID> plist = getPostingList(tup);
-            postingLists.push_back(plist);
-        } else {
-            // If any required trigram is missing, no row can match.
-            postingLists.clear();
-            break;
-        }
-    }
+    //     IndexTuple* tup = artRoot->search(keyBytes.data(),
+    //     static_cast<int>(keyBytes.size()),
+    //     /*depth*/ 0);
+    //     if (tup != nullptr) {
+    //         vector<TID> plist = getPostingList(tup);
+    //         postingLists.push_back(plist);
+    //     } else {
+    //         // If any required trigram is missing, no row can match.
+    //         postingLists.clear();
+    //         break;
+    //     }
+    // }
 
-    // Intersect all posting lists to get candidate TIDs.
-    vector<TID> candidateTIDs = intersectPostingLists(postingLists);
-    cout<< "Candidate TIDs: ";
-    for (const TID& tid : candidateTIDs) {
-        cout << tid.rowId << " ";
-    }
-    std::vector<TID> finalTIDs;
-    for (const TID& tid : candidateTIDs)
-    {
-        std::string text = getRowText(tid);   // fetch p_name, etc.
-        // Check if the text matches the pattern and if the literals appear in order.
-        // cout << "Checking text: " << text << "\n";
+    // // Intersect all posting lists to get candidate TIDs.
+    // vector<TID> candidateTIDs = intersectPostingLists(postingLists);
+    // cout<< "Candidate TIDs: ";
+    // for (const TID& tid : candidateTIDs) {
+    //     cout << tid.rowId << " ";
+    // }
+    // std::vector<TID> finalTIDs;
+    // for (const TID& tid : candidateTIDs)
+    // {
+    //     std::string text = getRowText(tid);   // fetch p_name, etc.
+    //     // Check if the text matches the pattern and if the literals appear in order.
+    //     // cout << "Checking text: " << text << "\n";
 
-        if (literalsAppearInOrder(text, requiredTrigrams))
-            finalTIDs.push_back(tid);
-    }
+    //     if (literalsAppearInOrder(text, requiredTrigrams))
+    //         finalTIDs.push_back(tid);
+    // }
 
-    /* report -------------------------------------------------------- */
-    std::cout << "Rows matching pattern \"" << pattern << "\": ";
-    for (const TID& tid : finalTIDs)
-        std::cout << tid.rowId << ' ';
-    std::cout << '\n';
+    // /* report -------------------------------------------------------- */
+    // std::cout << "Rows matching pattern \"" << pattern << "\": ";
+    // for (const TID& tid : finalTIDs)
+    //     std::cout << tid.rowId << ' ';
+    // std::cout << '\n';
     // 9. Cleanup.
     std::ofstream outFile("art_tree_output.txt");
     if (outFile.is_open()) {
