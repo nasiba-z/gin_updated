@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <algorithm>
 #include <cstring>
+#include <iostream>
 
 // ----------------------------------------------------------------
 // Implementation of createGinPostingList for in-memory use.
@@ -71,12 +72,10 @@ IndexTuple* GinFormTuple(GinState* ginstate,
             return itup;
         }
 
-        // Compute the "inline posting list size" (simulate disk layout size).
-        size_t plSize = sizeof(GinPostingList) + numTIDs * sizeof(TID);
 
-        // If the number of TIDs exceeds the inline threshold (LeafMaxCount),
+        // If the number of TIDs exceeds the inline threshold (GinMaxItemSize),
         // convert the inline posting list into a posting tree.
-        if (postingData.size() > GinPostingListSegmentMaxSize) {
+        if (numTIDs > GinMaxItemSize) {
             // Create a new PostingTree.
             PostingTree* tree = new PostingTree();
             // Instead of bulk-loading, we mimic GIN's behavior by first filling
@@ -84,7 +83,7 @@ IndexTuple* GinFormTuple(GinState* ginstate,
             tree->bulkLoad(postingData);
             // Store the posting tree pointer in the tuple.
             itup->postingTree = tree;
-            itup->postingSize = postingData.size();
+            itup->postingSize = numTIDs;
         } 
     
         else {
@@ -96,7 +95,7 @@ IndexTuple* GinFormTuple(GinState* ginstate,
         }
         // Transfer ownership of inlineList to the tuple's smart pointer.
         itup->postingList.reset(inlineList);
-        itup->postingSize = postingData.size();
+        itup->postingSize = numTIDs;
         
     }
         return itup;

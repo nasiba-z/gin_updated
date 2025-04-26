@@ -8,15 +8,16 @@
 
 
 // Constants for posting tree segment sizes, in bytes.
-constexpr size_t GinPostingListSegmentMaxSize   =  40000;// 80000;
-constexpr size_t GinPostingListSegmentTargetSize = 30000;//;30000
-constexpr size_t GinPostingListSegmentMinSize   = 20000;//;//2000024000;
+constexpr size_t GinPostingListSegmentMaxSize   =  1600;// 80000;
+constexpr size_t GinPostingListSegmentTargetSize = 800;//;30000
+constexpr size_t GinPostingListSegmentMinSize   = 400;//;//2000024000;
 
 // Derive target, max, and min TID counts per leaf node based on TID size.
 constexpr size_t LeafTargetCount = GinPostingListSegmentTargetSize / sizeof(TID);
 constexpr size_t LeafMaxCount    = GinPostingListSegmentMaxSize   / sizeof(TID);
 constexpr size_t LeafMinCount    = GinPostingListSegmentMinSize   / sizeof(TID);
 
+constexpr size_t GinMaxItemSize = 20000;
 // -------------------------------------------------------------------
 // BTreeNode for PostingTree:
 // This node stores TIDs as keys. In a leaf node, keys represent the actual TIDs;
@@ -58,7 +59,7 @@ public:
     std::vector<BTreeNode*> buildLeafNodes(const std::vector<TID>& sortedTIDs);
     size_t getTotalSize() const;      // <--- Declaration here.
     // Helper: Build internal nodes (bottom-up) from a vector of child nodes.
-    BTreeNode* buildInternalLevel(const std::vector<BTreeNode*>& children);
+    BTreeNode* buildInternalLevel(std::vector<BTreeNode*>&& children);
     void createFromVector(const std::vector<TID>& items);
     std::vector<TID> getTIDs() const;
     private:

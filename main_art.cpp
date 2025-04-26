@@ -225,7 +225,7 @@ int main() {
       
     }
     
-    cout << "Number of unique trigrams: " << postingMap.size() << endl;
+    // cout << "Number of unique trigrams: " << postingMap.size() << endl;
     GinState state(true, 256); // Reduced maxItemSize for testing posting trees.
 
     // 4. Create IndexTuples from each posting list.
@@ -270,15 +270,13 @@ int main() {
     auto end = std::chrono::high_resolution_clock::now();
     // Compute the elapsed time in seconds.
     std::chrono::duration<double> elapsed = end - start;
-    std::cout << "Total execution time: " << elapsed.count() << " seconds." << std::endl;
-
-    cout << "ART tree built via bulk loading on " << artItems.size() << " unique trigrams." << endl;
+    std::cout << "Bulk-loading execution time: " << elapsed.count() << " seconds." << std::endl;
 
      // --- Candidate Retrieval using the Gin Index (via EntryTree search) ---
     // Disabled for now. Uncomment the following code to enable candidate retrieval.
-    auto start_cr = std::chrono::high_resolution_clock::now();
+    string pattern = "%chocolate%mon%";
 
-    string pattern = "%hon%hot%";
+    auto start_cr = std::chrono::high_resolution_clock::now();
     // Extract required trigrams from the pattern.
     std::vector<Trigram> requiredTrigrams = getRequiredTrigrams(pattern);
     vector<vector<TID>> postingLists;
@@ -317,10 +315,11 @@ int main() {
     }
 
     /* report -------------------------------------------------------- */
-    std::cout << "Rows matching pattern \"" << pattern << "\": ";
-    for (const TID& tid : finalTIDs)
-        std::cout << tid.rowId << ' ';
-    std::cout << '\n';
+    // std::cout << "Rows matching pattern \"" << pattern << "\": ";
+    // for (const TID& tid : finalTIDs)
+    //     std::cout << tid.rowId << ' ';
+    // std::cout << '\n';
+    std::cout << "Number of rows matching pattern \"" << pattern << "\": " << finalTIDs.size() << std::endl;
     // Record the end time for candidate retrieval.
     auto end_cr = std::chrono::high_resolution_clock::now();
     //print the elapsed time for candidate retrieval.

@@ -3,6 +3,7 @@
 #include <tuple>
 #include <unordered_map>
 #include <map>
+#include <unordered_set>
 #include <algorithm>
 #include "read_db.h"               // Contains read_db() function.
 #include "gin_index.h"             // Contains GinIndex, GinFormTuple, IndexTuple, etc.
@@ -126,7 +127,7 @@ int main() {
 
     // 6. Convert postingMap to a sorted map for debugging.
     std::map<datum, vector<TID>> sortedPostingMap(postingMap.begin(), postingMap.end());
-
+    std::cout << "Number of keys in sortedPostingMap: " << sortedPostingMap.size() << std::endl;
     // 7. Form final IndexTuples from the GinIndex.
     vector<IndexTuple*> tuples;
     for (const auto& kv : sortedPostingMap) {
@@ -137,11 +138,11 @@ int main() {
             tuples.push_back(tup);
 
         // Print a counter each 1000th key
-        static int counter = 0;
-        counter++;
-        if (counter % 1000 == 0) {
-            cout << "Inserted key: " << key << " with " << tids.size() << " TIDs." << endl;
-        }
+        // static int counter = 0;
+        // counter++;
+        // if (counter % 50 == 0) {
+        //     cout << "Inserted key: " << key << " with " << tids.size() << " TIDs." << endl;
+        // }
     }
 
 
@@ -180,8 +181,7 @@ int main() {
     auto end = std::chrono::high_resolution_clock::now();
     // Compute the elapsed time in seconds.
     std::chrono::duration<double> elapsed = end - start;
-    std::cout << "Total execution time: " << elapsed.count() << " seconds." << std::endl;
-    cout << "EntryTree built. Total keys in tree: " << entryTree.getTotalSize() << endl;
+    std::cout << "Bulk-loading execution time: " << elapsed.count() << " seconds." << std::endl;
     // Save the EntryTree structure to a .txt file.
     std::ofstream outFile("entry_tree_output.txt");
     if (outFile.is_open()) {
@@ -198,13 +198,14 @@ int main() {
     // Disabled for now. Uncomment the following code to enable candidate retrieval.
     // Calculate time for this section only
     auto start_cr = std::chrono::high_resolution_clock::now();
-    string pattern = "%hon%hot%";
+    string pattern = "%chocolate%mon%";
     // Extract required trigrams from the pattern.
     std::vector<Trigram> requiredTrigrams = getRequiredTrigrams(pattern);
 
     vector<vector<TID>> postingLists;
 
     for (const auto &tri : requiredTrigrams) {
+        std::cout << tri << " ";
         int32_t key = packTrigram(tri);
         // Use the entry tree search method to get the IndexTuple.
         IndexTuple* tup = entryTree.search(key);
@@ -222,7 +223,8 @@ int main() {
     vector<TID> candidateTIDs = intersectPostingLists(postingLists);
        std::vector<TID> finalTIDs;
     for (const TID& tid : candidateTIDs)
-    {
+    {   
+        // std::cout << tid.rowId << " ";
         std::string text = getRowText(tid);   // fetch p_name, etc.
         // Check if the text matches the pattern and if the literals appear in order.
         // cout << "Checking text: " << text << "\n";
@@ -231,11 +233,15 @@ int main() {
             finalTIDs.push_back(tid);
     }
 
+
     /* report -------------------------------------------------------- */
-    std::cout << "Rows matching pattern \"" << pattern << "\": ";
-    for (const TID& tid : finalTIDs)
-        std::cout << tid.rowId << ' ';
-    std::cout << '\n';
+    // std::cout << "Rows matching pattern \"" << pattern << "\": ";
+    // for (const TID& tid : finalTIDs)
+    //     std::cout << tid.rowId << ' ';
+    // std::cout << '\n';
+    // count the number of matching rows
+    std::cout << "Number of rows matching pattern \"" << pattern << "\": " << finalTIDs.size() << std::endl;
+    // std::cout << "Number of rows matching pattern \"" << pattern << "\": " << survivors.size() << std::endl;
     // Record the end time for candidate retrieval.
     auto end_cr = std::chrono::high_resolution_clock::now();
     //print the elapsed time for candidate retrieval.

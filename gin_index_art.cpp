@@ -14,7 +14,6 @@ GinPostingList* createGinPostingList(const std::vector<TID>& postingData) {
 
 // ----------------------------------------------------------------
 // getPostingList: Retrieve the posting list from an IndexTuple.
-// This function checks if the posting list is available and returns it.
 std::vector<TID> getPostingList(IndexTuple* tup) {
     std::vector<TID> result;
     if (tup->postingList) {
@@ -74,13 +73,9 @@ IndexTuple* GinFormTuple_ART(GinState* ginstate,
             // No posting data; return tuple as is.
             return itup;
         }
-
-        // Compute the "inline posting list size" (simulate disk layout size).
-        size_t plSize = sizeof(GinPostingList) + numTIDs * sizeof(TID);
-
-        // If the number of TIDs exceeds the inline threshold (LeafMaxCount),
+        // If the number of TIDs exceeds the inline threshold (GinMaxItemSize),
         // convert the inline posting list into a posting tree.
-        if (postingData.size() > LeafMaxCount) {
+        if (postingData.size() > GinMaxItemSize) {
             // Create a new PostingTree.
             PostingTree* tree = new PostingTree();
             // Instead of bulk-loading, we mimic GIN's behavior by first filling
@@ -100,7 +95,7 @@ IndexTuple* GinFormTuple_ART(GinState* ginstate,
         }
         // Transfer ownership of inlineList to the tuple's smart pointer.
         itup->postingList.reset(inlineList);
-        itup->postingSize = postingData.size();
+        itup->postingSize = numTIDs;
         
          } 
         return itup;

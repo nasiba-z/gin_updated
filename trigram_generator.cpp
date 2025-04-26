@@ -61,43 +61,48 @@ std::set<std::string> trigram_generator(const std::string& input)
 
 // From a LIKE pattern (e.g. "%foo%ame%"), extract the literal segments and then
 // their trigrams. These are the trigrams that must appear in any candidate.
-std::vector<Trigram> getRequiredTrigrams(const std::string &pattern) {
-    std::vector<Trigram> ordered;            // result in pattern order
-    std::unordered_set<Trigram> seen;        // fast “already added?” check
-    size_t pos = 0;
-    while (pos < pattern.size())
+std::vector<Trigram>                   /* keeps left-to-right order        */
+getRequiredTrigrams(const std::string& pattern)
+{
+    std::vector<Trigram>   ordered;
+    std::unordered_set<Trigram> seen;
+
+    const char* p = pattern.c_str();
+    const char* end = p + pattern.size();
+
+    while (p < end)
     {
-        /* ---------- find next literal segment between % … % ------------ */
-        while (pos < pattern.size() && pattern[pos] == '%')
-            ++pos;
-        if (pos >= pattern.size())
-            break;
+        /* 1) advance over consecutive '%' wild-cards */
+        while (p < end && *p == '%') ++p;
+        if (p >= end) break;
 
-        size_t start = pos;
-        while (pos < pattern.size() && pattern[pos] != '%')
-            ++pos;
+        /* 2) capture next literal chunk up to next '%' */
+        const char* litBeg = p;
+        while (p < end && *p != '%') ++p;
+        std::string literal(litBeg, p);            /* UTF-8 chunk         */
+        std::string cleaned = normalize(literal);  /* lower-case + spaces */
 
-        std::string segment = pattern.substr(start, pos - start);
-        std::string cleaned = normalize(segment);
+        /* 3) pad exactly like pg_trgm: “␠␠word␠” when needed */
+        bool leftPad  = (litBeg == pattern.c_str()      || *(litBeg-1) != '%');
+        bool rightPad = (p      == end                  || *p          != '%');
 
-        /* ---------- decide padding (same logic you had) ----------------- */
-        bool leftPad  = !(start > 0               && pattern[start - 1] == '%');
-        bool rightPad = !(pos   < pattern.size()  && pattern[pos]      == '%');
+        std::string padded;
+        if (leftPad)  padded += "  ";
+        padded += cleaned;
+        if (rightPad) padded += ' ';
 
-        std::string padded = (leftPad ? "  " : "") + cleaned + (rightPad ? "  " : "");
-
-        /* ---------- extract trigrams in *text* order -------------------- */
-        if (padded.size() < 3)          // too short ⇒ no trigram can be forced
-            continue;
-
-        for (size_t i = 0; i + 3 <= padded.size(); ++i)
+        /* 4) emit trigrams in *appearance* order         */
+        if (padded.size() >= 3)
         {
-            Trigram tri = padded.substr(i, 3);
-            if (seen.insert(tri).second)        // first time we see it
-                ordered.push_back(std::move(tri));
+            for (size_t i = 0; i + 2 < padded.size(); ++i)
+            {
+                Trigram tri = padded.substr(i, 3);        // three bytes
+                if (seen.insert(tri).second)              // first time seen
+                    ordered.emplace_back(std::move(tri));
+            }
         }
     }
-    return ordered;      // <‑‑ preserves left‑to‑right order
+    return ordered;
 }
 
 // Pack a trigram string (assumed to be exactly 3 characters) into an int32_t,
