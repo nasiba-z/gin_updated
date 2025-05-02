@@ -254,8 +254,8 @@ int main() {
     //         delete tup->postingTree;
     //     delete tup;
     // }
-    postingMap.clear();
-    sortedPostingMap.clear();
+    // postingMap.clear();
+    // sortedPostingMap.clear();
 
     // if (outFile.is_open()) {
     //     outFile.close();

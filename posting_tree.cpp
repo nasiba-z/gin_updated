@@ -65,6 +65,11 @@ std::vector<BTreeNode*> PostingTree::buildLeafNodes(const std::vector<TID>& sort
 
 BTreeNode* PostingTree::buildInternalLevel(const std::vector<BTreeNode*>& children) {
     std::cout << "Building internal level with " << children.size() << " children." << std::endl;
+    if (children.empty())
+    {
+        std::cout << "No children: returning nullptr.\n";
+        return nullptr;
+    }
     if (children.size() == 1){
         std::cout << "Base case reached. Returning single child." << std::endl;
         return children[0];
