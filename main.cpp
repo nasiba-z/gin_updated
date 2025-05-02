@@ -257,11 +257,10 @@ int main() {
     postingMap.clear();
     sortedPostingMap.clear();
 
-    tuples.clear();
     // if (outFile.is_open()) {
     //     outFile.close();
     // }
     // std::vector<int>().swap(leafDepths); // Clears and releases memory for leafDepths
-    std::cout.flush();
+    // std::cout.flush();
     return 0;
 }
