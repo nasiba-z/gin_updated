@@ -249,11 +249,11 @@ int main() {
     std::cout << "Candidate retrieval execution time: " << elapsed_cr.count() << " seconds." << std::endl;
 
     // 11. Cleanup: Delete all allocated IndexTuples and associated PostingTrees.
-    for (auto* tup : tuples) {
-        if (tup->postingTree)
-            delete tup->postingTree;
-        delete tup;
-    }
+    // for (auto* tup : tuples) {
+    //     if (tup->postingTree)
+    //         delete tup->postingTree;
+    //     delete tup;
+    // }
     postingMap.clear();
     sortedPostingMap.clear();
 
