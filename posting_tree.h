@@ -59,7 +59,7 @@ public:
     std::vector<BTreeNode*> buildLeafNodes(const std::vector<TID>& sortedTIDs);
     size_t getTotalSize() const;      // <--- Declaration here.
     // Helper: Build internal nodes (bottom-up) from a vector of child nodes.
-    BTreeNode* buildInternalLevel(std::vector<BTreeNode*>&& children);
+    BTreeNode* buildInternalLevel(const std::vector<BTreeNode*>& children);
     void createFromVector(const std::vector<TID>& items);
     std::vector<TID> getTIDs() const;
     private:
