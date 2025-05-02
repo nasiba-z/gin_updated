@@ -62,14 +62,9 @@ std::vector<BTreeNode*> PostingTree::buildLeafNodes(const std::vector<TID>& sort
 // ------------------------------------------------------------------
 // Helper function: Build internal nodes from a vector of child nodes (bulkLoad). One reference was good enough
 // avoid copying the vector of children. The move was not necessary, but it was used to avoid copying the vector of children
-// TODO: Revert to not using move, alternatively debug with breakpoints.
-// ------------------------------------------------------------------
-// In posting_tree.h, change the signature back to take a const ref:
-BTreeNode* buildInternalLevel(const std::vector<BTreeNode*>& children);
 
-// In posting_tree.cpp:
-BTreeNode*
-PostingTree::buildInternalLevel(const std::vector<BTreeNode*>& children)
+
+BTreeNode*PostingTree::buildInternalLevel(const std::vector<BTreeNode*>& children)
 {
     // Base case: if there’s only one subtree, that’s your root
     if (children.size() == 1)
