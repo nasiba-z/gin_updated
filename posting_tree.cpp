@@ -63,43 +63,69 @@ std::vector<BTreeNode*> PostingTree::buildLeafNodes(const std::vector<TID>& sort
 // Helper function: Build internal nodes from a vector of child nodes (bulkLoad). One reference was good enough
 // avoid copying the vector of children. The move was not necessary, but it was used to avoid copying the vector of children
 
-
-BTreeNode*PostingTree::buildInternalLevel(const std::vector<BTreeNode*>& children)
-{
-    // Base case: if there’s only one subtree, that’s your root
+BTreeNode* PostingTree::buildInternalLevel(const std::vector<BTreeNode*>& children) {
     if (children.size() == 1)
         return children[0];
 
     std::vector<BTreeNode*> parents;
-    constexpr size_t B = 16;         // your branching factor
+    // Use a fixed branching factor for internal nodes.
+    // For example, let’s use a branching factor B.
+    const size_t B = 16; // branching factor for internal nodes.
     size_t n = children.size();
     size_t i = 0;
-
-    // Group children into batches of up to B
-    while (i < n)
-    {
-        size_t count = std::min(B, n - i);
+    while (i < n) {
+        size_t count = B;
+        if (i + count > n)
+            count = n - i;
         BTreeNode* parent = new BTreeNode(false);
-
-        // Copy the next `count` child pointers into this parent
-        parent->children.insert(
-            parent->children.end(),
-            children.begin() + i,
-            children.begin() + i + count);
-
-        // For each child after the first, pick its first key as a separator
-        for (size_t j = 1; j < count; ++j)
-        {
-            parent->keys.push_back(parent->children[j]->keys.front());
+        // Set parent's children from children[i] to children[i+count-1].
+        parent->children.insert(parent->children.end(), children.begin() + i, children.begin() + i + count);
+        // The parent's keys are the first key of each child except the first.
+        for (size_t j = 1; j < count; j++) {
+            parent->keys.push_back(children[i + j]->keys.front());
         }
-
         parents.push_back(parent);
         i += count;
     }
-
-    // Recurse on the newly‐built parents vector
     return buildInternalLevel(parents);
 }
+
+// BTreeNode*PostingTree::buildInternalLevel(const std::vector<BTreeNode*>& children)
+// {
+//     // Base case: if there’s only one subtree, that’s your root
+//     if (children.size() == 1)
+//         return children[0];
+
+//     std::vector<BTreeNode*> parents;
+//     constexpr size_t B = 16;         // your branching factor
+//     size_t n = children.size();
+//     size_t i = 0;
+
+//     // Group children into batches of up to B
+//     while (i < n)
+//     {
+//         size_t count = std::min(B, n - i);
+//         BTreeNode* parent = new BTreeNode(false);
+
+//         // Copy the next `count` child pointers into this parent
+//         parent->children.insert(
+//             parent->children.end(),
+//             children.begin() + i,
+//             children.begin() + i + count);
+
+//         // For each child after the first, pick its first key as a separator
+//         for (size_t j = 1; j < count; ++j)
+//         {
+//             parent->keys.push_back(parent->children[j]->keys.front());
+//         }
+
+//         parents.push_back(parent);
+//         i += count;
+//     }
+
+//     // Recurse on the newly‐built parents vector
+//     return buildInternalLevel(parents);
+// }
 
 
 // ------------------------------------------------------------------
