@@ -64,9 +64,12 @@ std::vector<BTreeNode*> PostingTree::buildLeafNodes(const std::vector<TID>& sort
 // avoid copying the vector of children. The move was not necessary, but it was used to avoid copying the vector of children
 
 BTreeNode* PostingTree::buildInternalLevel(const std::vector<BTreeNode*>& children) {
-    if (children.size() == 1)
+    std::cout << "Building internal level with " << children.size() << " children." << std::endl;
+    if (children.size() == 1){
+        std::cout << "Base case reached. Returning single child." << std::endl;
         return children[0];
-
+    }
+    // Base case: if there’s only one subtree, that’s your root.
     std::vector<BTreeNode*> parents;
     // Use a fixed branching factor for internal nodes.
     // For example, let’s use a branching factor B.
@@ -78,6 +81,7 @@ BTreeNode* PostingTree::buildInternalLevel(const std::vector<BTreeNode*>& childr
         if (i + count > n)
             count = n - i;
         BTreeNode* parent = new BTreeNode(false);
+        std::cout << "Creating parent node with " << count << " children." << std::endl;
         // Set parent's children from children[i] to children[i+count-1].
         parent->children.insert(parent->children.end(), children.begin() + i, children.begin() + i + count);
         // The parent's keys are the first key of each child except the first.
@@ -87,6 +91,7 @@ BTreeNode* PostingTree::buildInternalLevel(const std::vector<BTreeNode*>& childr
         parents.push_back(parent);
         i += count;
     }
+    std::cout << "Recursing with " << parents.size() << " parents." << std::endl;
     return buildInternalLevel(parents);
 }
 
