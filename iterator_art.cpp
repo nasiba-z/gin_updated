@@ -27,8 +27,7 @@ int main() {
         auto start = std::chrono::high_resolution_clock::now();
 
         // Run the compiled main.exe and redirect its output to a temporary file
-        std::system("main.exe > temp_output.txt");
-
+        system("./main_art > temp_output.txt");
         // End timing
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
