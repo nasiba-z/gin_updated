@@ -44,9 +44,9 @@ int main() {
         double candidateRetrievalTime = 0.0;
 
         while (std::getline(tempFile, line)) {
-            if (line.find("Bulk-loading execution time for sf 10:") != std::string::npos) {
+            if (line.find("Bulk-loading execution time:") != std::string::npos) {
                 bulkLoadingTime = std::stod(line.substr(line.find(":") + 1));
-            } else if (line.find("Candidate retrieval execution time for sf 10:") != std::string::npos) {
+            } else if (line.find("Candidate retrieval execution time:") != std::string::npos) {
                 candidateRetrievalTime = std::stod(line.substr(line.find(":") + 1));
             }
         }
