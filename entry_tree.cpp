@@ -7,7 +7,16 @@
 static const size_t MAX_KEYS = EntryLeafMaxCount;
 // Define minimum number of keys per node (roughly half the maximum).
 static const size_t MIN_KEYS = (EntryLeafMaxCount + 1) / 2;
+// Define KeyType as an alias for int32_t (or replace with the correct type if known).
+using KeyType = int32_t;
 
+static KeyType
+getMinKey(const EntryTreeNode* node)
+{
+    while (!node->leaf)
+        node = node->children.front();
+    return node->keys.front();
+}
 // -------------------------
 // Destructor
 // -------------------------
@@ -43,32 +52,48 @@ std::vector<EntryTreeNode*> EntryTree::buildLeafNodes(const std::vector<IndexTup
 // Bulk-Loading: Build internal nodes bottom-up from a vector of child nodes.
 // In internal nodes, keys are used for routing: each key is the first key of the child (except the first child).
 // -------------------------
-EntryTreeNode* EntryTree::buildInternalLevel(const std::vector<EntryTreeNode*>& children) {
+EntryTreeNode*
+EntryTree::buildInternalLevel(const std::vector<EntryTreeNode*>& children)
+{
     if (children.size() == 1)
         return children[0];
 
     std::vector<EntryTreeNode*> parents;
     size_t n = children.size();
     size_t i = 0;
+
     while (i < n) {
+        // how many remain, and the B-tree bounds:
+        size_t remaining    = n - i;
+        size_t maxChildren  = MAX_KEYS + 1;
+        size_t minChildren  = MIN_KEYS + 1;
+
+        // start by taking as many as we can...
+        size_t count = std::min(remaining, maxChildren);
+
+        // but if that would leave fewer than minChildren
+        // for the last node, steal from this one:
+        if (remaining > maxChildren && remaining - count < minChildren) {
+            count = remaining - minChildren;
+        }
+
+        // build the parent
         EntryTreeNode* parent = new EntryTreeNode(false);
-        // Group up to MAX_KEYS+1 children in one internal node.
-        size_t count = std::min(n - i, MAX_KEYS + 1);
-        // Assign children and seperator keys
-        // The first child pointer is inserted without a key.
-        for (size_t j = 0; j < count; j++) {
+        for (size_t j = 0; j < count; ++j) {
             parent->children.push_back(children[i + j]);
-            // For each child after the first, use its first key as a separator.
-            if (j > 0 && !children[i + j]->keys.empty()) {
-                parent->keys.push_back(children[i + j]->keys.front());
+            if (j > 0) {
+                // promote the true subtree-min as separator
+                KeyType sep = getMinKey(children[i + j]);
+                parent->keys.push_back(sep);
             }
         }
         parents.push_back(parent);
         i += count;
     }
+
+    // recurse until only one root remains
     return buildInternalLevel(parents);
 }
-
 // -------------------------
 // Bulk-Loading: Build the EntryTree from a sorted vector of IndexTuple pointers.
 // -------------------------
@@ -77,6 +102,29 @@ void EntryTree::bulkLoad(const std::vector<IndexTuple*>& tuples) {
     std::vector<EntryTreeNode*> leaves = buildLeafNodes(tuples);
     // Then, build the internal levels until one root remains.
     root = buildInternalLevel(leaves);
+}
+
+
+// -------------------------
+// Search Function: Look for a key in the tree.
+// -------------------------
+IndexTuple* EntryTree::search(int32_t key) const {
+    EntryTreeNode* current = root;
+    if (!current)
+        return nullptr;
+    // Traverse down the tree until we reach a leaf.
+    while (!current->leaf) {
+        size_t i = 0;
+        while (i < current->keys.size() && key >= current->keys[i])
+            i++;
+        current = current->children[i];
+    }
+    // In the leaf, search for the key.
+    for (size_t i = 0; i < current->keys.size(); ++i) {
+        if (current->keys[i] == key)
+            return current->values[i];  // Return the IndexTuple pointer.
+    }
+    return nullptr;  // Key not found.
 }
 
 // -------------------------
@@ -173,27 +221,7 @@ void EntryTree::splitChild(EntryTreeNode* parent, size_t i) {
     parent->children.insert(parent->children.begin() + i + 1, sibling);
 }
 
-// -------------------------
-// Search Function: Look for a key in the tree.
-// -------------------------
-IndexTuple* EntryTree::search(int32_t key) const {
-    EntryTreeNode* current = root;
-    if (!current)
-        return nullptr;
-    // Traverse down the tree until we reach a leaf.
-    while (!current->leaf) {
-        size_t i = 0;
-        while (i < current->keys.size() && key >= current->keys[i])
-            i++;
-        current = current->children[i];
-    }
-    // In the leaf, search for the key.
-    for (size_t i = 0; i < current->keys.size(); ++i) {
-        if (current->keys[i] == key)
-            return current->values[i];  // Return the IndexTuple pointer.
-    }
-    return nullptr;  // Key not found.
-}
+
 
 // -------------------------
 // getTotalSize: Compute the total "logical" size (number of keys) in the tree.

@@ -113,10 +113,7 @@ int main() {
             // Append the row's TID (constructed from trow.id) to the vector for this trigram.
             postingMap[trigramKey].push_back(TID(trow.id));
         }
-        // processedRows++;
-        // if (processedRows % 10000 == 0) {
-        //     cout << "Processed " << processedRows << " rows." << endl;
-        // }
+        
     }
     // Now sort each posting list once.
     for (auto& entry : postingMap) {
