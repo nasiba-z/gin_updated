@@ -10,7 +10,7 @@
 
 int main() {
     // Output file to save the results
-    std::ofstream outFile("iteration_results2_sf10.csv");
+    std::ofstream outFile("iteration_results_short_sf10.csv");
     if (!outFile.is_open()) {
         std::cerr << "Error: Could not open output file!" << std::endl;
         return 1;
@@ -28,6 +28,7 @@ int main() {
 
         // Run the compiled main.exe and redirect its output to a temporary file
         system("./main > temp_output.txt");
+        // for ubuntu it should be ./main
         // End timing
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;

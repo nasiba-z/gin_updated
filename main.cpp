@@ -195,7 +195,7 @@ int main() {
     // Disabled for now. Uncomment the following code to enable candidate retrieval.
     // Calculate time for this section only
     auto start_cr = std::chrono::high_resolution_clock::now();
-    string pattern = "%chocolate%mon%";
+    string pattern = "%hon%hot%";
     // Extract required trigrams from the pattern.
     std::vector<Trigram> requiredTrigrams = getRequiredTrigrams(pattern);
 

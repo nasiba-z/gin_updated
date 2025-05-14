@@ -273,8 +273,8 @@ int main() {
     std::cout << "Bulk-loading execution time: " << elapsed.count() << " seconds." << std::endl;
 
      // --- Candidate Retrieval using the Gin Index (via EntryTree search) ---
-    // Disabled for now. Uncomment the following code to enable candidate retrieval.
-    string pattern = "%chocolate%mon%";
+    string pattern = "%hon%hot%";
+    // string pattern = "%chocolate%mon%";
 
     auto start_cr = std::chrono::high_resolution_clock::now();
     // Extract required trigrams from the pattern.
