@@ -258,7 +258,7 @@ int main() {
     auto end_cr_medium = std::chrono::high_resolution_clock::now();
     //print the elapsed time for candidate retrieval.
     std::chrono::duration<double> elapsed_cr_medium = end_cr_medium - start_cr_medium;
-    std::cout << "Candidate retrieval execution time for short predicate: " << elapsed_cr_medium.count() << " seconds." << std::endl;
+    std::cout << "Candidate retrieval execution time for medium predicate: " << elapsed_cr_medium.count() << " seconds." << std::endl;
     // Intersect all posting lists to get candidate TIDs.
     vector<TID> candidateTIDs_med = intersectPostingLists(postingLists_medium);
        std::vector<TID> finalTIDs_med;
@@ -297,7 +297,7 @@ int main() {
     auto end_cr_long = std::chrono::high_resolution_clock::now();
     //print the elapsed time for candidate retrieval.
     std::chrono::duration<double> elapsed_cr_long = end_cr_long - start_cr_long;
-    std::cout << "Candidate retrieval execution time for short predicate: " << elapsed_cr_medium.count() << " seconds." << std::endl;
+    std::cout << "Candidate retrieval execution time for long predicate: " << elapsed_cr_medium.count() << " seconds." << std::endl;
     // Intersect all posting lists to get candidate TIDs.
     vector<TID> candidateTIDs_long = intersectPostingLists(postingLists_long);
        std::vector<TID> finalTIDs_long;
