@@ -1,6 +1,8 @@
 // ART.cpp
 #include "art.h"
 #include <iostream>
+#include <emmintrin.h>   // for _mm_cmpeq_epi8
+#include <tmmintrin.h>   // for _mm_movemask_epi8 (SSE3)
 
 
 
@@ -190,25 +192,42 @@ ARTNode* ARTNode4::insert(const unsigned char* key, int keyLen, int depth, Index
     assert(false && "Node4 insertion reached an unreachable state.");
     return this;
 }
-
 IndexTuple* ARTNode4::search(const unsigned char* key, int keyLen, int depth) const {
     int d = depth;
-    // If there is a stored prefix in this node, check that the search key matches.
+    // prefix check
     if (prefixLen > 0) {
-        if (keyLen - depth < prefixLen) return nullptr;
-        if (memcmp(prefix.data(), key + depth, prefixLen) != 0)
+        if (keyLen - d < prefixLen || memcmp(prefix.data(), key + d, prefixLen) != 0)
             return nullptr;
         d += prefixLen;
     }
-    if (d >= keyLen) return nullptr;
-    unsigned char currentKey = key[d];
-    for (int i = 0; i < count; i++) {
-        if (keys[i] == currentKey) {
+    if (d >= keyLen)
+        return nullptr;
+    unsigned char b = key[d];
+    // simple linear search among up to 4 keys
+    for (int i = 0; i < count; ++i) {
+        if (keys[i] == b)
             return children[i]->search(key, keyLen, d + 1);
-        }
     }
     return nullptr;
 }
+// IndexTuple* ARTNode4::search(const unsigned char* key, int keyLen, int depth) const {
+//     int d = depth;
+//     // If there is a stored prefix in this node, check that the search key matches.
+//     if (prefixLen > 0) {
+//         if (keyLen - depth < prefixLen) return nullptr;
+//         if (memcmp(prefix.data(), key + depth, prefixLen) != 0)
+//             return nullptr;
+//         d += prefixLen;
+//     }
+//     if (d >= keyLen) return nullptr;
+//     unsigned char currentKey = key[d];
+//     for (int i = 0; i < count; i++) {
+//         if (keys[i] == currentKey) {
+//             return children[i]->search(key, keyLen, d + 1);
+//         }
+//     }
+//     return nullptr;
+// }
 
 // ---------------------
 // ARTNode16 Implementation
@@ -274,15 +293,42 @@ ARTNode* ARTNode16::insert(const unsigned char* key, int keyLen, int depth, Inde
 }
 
 IndexTuple* ARTNode16::search(const unsigned char* key, int keyLen, int depth) const {
-    if (depth >= keyLen) return nullptr;
-    unsigned char currentKey = key[depth];
-    for (int i = 0; i < count; i++) {
-        if (keys[i] == currentKey) {
-            return children[i]->search(key, keyLen, depth + 1);
-        }
+    int d = depth;
+    // prefix check
+    if (prefixLen > 0) {
+        if (keyLen - d < prefixLen || memcmp(prefix.data(), key + d, prefixLen) != 0)
+            return nullptr;
+        d += prefixLen;
     }
-    return nullptr;
+    if (d >= keyLen)
+        return nullptr;
+    unsigned char b = key[d];
+
+    // Broadcast the search byte
+    __m128i cmp_key = _mm_set1_epi8((char)b);
+    // Load stored keys (aligned or unaligned)
+    __m128i key_vec = _mm_loadu_si128(reinterpret_cast<const __m128i*>(keys));
+    // Compare
+    __m128i cmp = _mm_cmpeq_epi8(cmp_key, key_vec);
+    // Mask to valid entries
+    int mask = (1 << count) - 1;
+    int bits = _mm_movemask_epi8(cmp) & mask;
+    if (bits == 0)
+        return nullptr;
+    int idx = __builtin_ctz(bits);
+    return children[idx]->search(key, keyLen, d + 1);
 }
+
+// IndexTuple* ARTNode16::search(const unsigned char* key, int keyLen, int depth) const {
+//     if (depth >= keyLen) return nullptr;
+//     unsigned char currentKey = key[depth];
+//     for (int i = 0; i < count; i++) {
+//         if (keys[i] == currentKey) {
+//             return children[i]->search(key, keyLen, depth + 1);
+//         }
+//     }
+//     return nullptr;
+// }
 
 // ---------------------
 // ARTNode48 Implementation
@@ -342,15 +388,31 @@ ARTNode* ARTNode48::insert(const unsigned char* key, int keyLen, int depth, Inde
     assert(false && "Node48 is full; node growth is not implemented.");
     return this;
 }
-
 IndexTuple* ARTNode48::search(const unsigned char* key, int keyLen, int depth) const {
-    if (depth >= keyLen) return nullptr;
-    unsigned char currentKey = key[depth];
-    if (childIndex[currentKey] == 0xFF)
+    int d = depth;
+    // prefix check
+    if (prefixLen > 0) {
+        if (keyLen - d < prefixLen || memcmp(prefix.data(), key + d, prefixLen) != 0)
+            return nullptr;
+        d += prefixLen;
+    }
+    if (d >= keyLen)
         return nullptr;
-    int idx = childIndex[currentKey];
-    return children[idx]->search(key, keyLen, depth + 1);
+    unsigned char b = key[d];
+    int idx = childIndex[b];
+    if (idx == 0xFF)
+        return nullptr;
+    return children[idx]->search(key, keyLen, d + 1);
 }
+
+// IndexTuple* ARTNode48::search(const unsigned char* key, int keyLen, int depth) const {
+//     if (depth >= keyLen) return nullptr;
+//     unsigned char currentKey = key[depth];
+//     if (childIndex[currentKey] == 0xFF)
+//         return nullptr;
+//     int idx = childIndex[currentKey];
+//     return children[idx]->search(key, keyLen, depth + 1);
+// }
 
 // ---------------------
 // ARTNode256 Implementation

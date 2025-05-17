@@ -2,6 +2,8 @@
 #include <algorithm>
 #include <functional>
 #include <iostream>
+#include <emmintrin.h>   // SSE2 intrinsics
+#include <cstddef>       // for size_t
 
 // Utility: For simplicity, EntryLeafMaxCount is maximum keys for all nodes.
 static const size_t MAX_KEYS = EntryLeafMaxCount;
@@ -104,28 +106,135 @@ void EntryTree::bulkLoad(const std::vector<IndexTuple*>& tuples) {
     root = buildInternalLevel(leaves);
 }
 
+IndexTuple* EntryTree::search(int32_t key) const {
+    EntryTreeNode* current = root;
+    if (!current) 
+        return nullptr;
+
+    // 1) Descend to the leaf using binary search in each internal node
+    while (!current->leaf) {
+        // find first element > key
+        auto it = std::upper_bound(
+            current->keys.begin(),
+            current->keys.end(),
+            key
+        );
+        size_t child_idx = std::distance(current->keys.begin(), it);
+        current = current->children[child_idx];
+    }
+
+    // 2) In the leaf, binary search for exact match
+    auto it = std::lower_bound(
+        current->keys.begin(),
+        current->keys.end(),
+        key
+    );
+    if (it != current->keys.end() && *it == key) {
+        size_t idx = std::distance(current->keys.begin(), it);
+        return current->values[idx];
+    }
+
+    return nullptr;
+}
 
 // -------------------------
 // Search Function: Look for a key in the tree.
 // -------------------------
-IndexTuple* EntryTree::search(int32_t key) const {
-    EntryTreeNode* current = root;
-    if (!current)
-        return nullptr;
-    // Traverse down the tree until we reach a leaf.
-    while (!current->leaf) {
-        size_t i = 0;
-        while (i < current->keys.size() && key >= current->keys[i])
-            i++;
-        current = current->children[i];
-    }
-    // In the leaf, search for the key.
-    for (size_t i = 0; i < current->keys.size(); ++i) {
-        if (current->keys[i] == key)
-            return current->values[i];  // Return the IndexTuple pointer.
-    }
-    return nullptr;  // Key not found.
-}
+// IndexTuple* EntryTree::search(int32_t key) const {
+//     EntryTreeNode* current = root;
+//     if (!current)
+//         return nullptr;
+//     // Traverse down the tree until we reach a leaf.
+//     while (!current->leaf) {
+//         size_t i = 0;
+//         while (i < current->keys.size() && key >= current->keys[i])
+//             i++;
+//         current = current->children[i];
+//     }
+//     // In the leaf, search for the key.
+//     for (size_t i = 0; i < current->keys.size(); ++i) {
+//         if (current->keys[i] == key)
+//             return current->values[i];  // Return the IndexTuple pointer.
+//     }
+//     return nullptr;  // Key not found.
+// }
+// IndexTuple* EntryTree::search(int32_t key) const {
+//     EntryTreeNode* current = root;
+//     if (!current) 
+//         return nullptr;
+
+//     // Broadcast the search key into a 128-bit register
+//     __m128i vkey = _mm_set1_epi32(key);
+
+//     // 1) Descend to the leaf using SIMD-accelerated "upper_bound"
+//     while (!current->leaf) {
+//         const int32_t* keys = current->keys.data();
+//         size_t n = current->keys.size();
+
+//         size_t i = 0, child_idx = n;  // default falls to the rightmost child
+//         size_t vec_end = n / 4 * 4;
+//         for (; i < vec_end; i += 4) {
+//             // Load 4 keys, compare to key
+//             __m128i v = _mm_loadu_si128(reinterpret_cast<const __m128i*>(keys + i));
+//             __m128i cmp = _mm_cmpgt_epi32(v, vkey);           // cmp = v > key
+//             int mask = _mm_movemask_epi8(cmp);                // 4 × 4-bit mask
+
+//             if (mask != 0) {
+//                 // find first bit set → which 32-bit lane is > key?
+//                 int bit = __builtin_ctz(mask);                // index of least-significant 1
+//                 int lane = bit / 4;                           // 4 bytes per lane
+//                 child_idx = i + lane;
+//                 break;
+//             }
+//         }
+//         // Scalar tail
+//         if (child_idx == n) {
+//             for (; i < n; ++i) {
+//                 if (keys[i] > key) {
+//                     child_idx = i;
+//                     break;
+//                 }
+//             }
+//         }
+//         // if still n, will pick the rightmost child (n)
+//         current = current->children[child_idx];
+//     }
+
+//     // 2) In the leaf, SIMD-accelerated exact match
+//     {
+//         const int32_t* keys = current->keys.data();
+//         size_t n = current->keys.size();
+
+//         size_t i = 0, found_idx = n;
+//         size_t vec_end = n / 4 * 4;
+//         for (; i < vec_end; i += 4) {
+//             __m128i v = _mm_loadu_si128(reinterpret_cast<const __m128i*>(keys + i));
+//             __m128i cmp = _mm_cmpeq_epi32(v, vkey);            // cmp = v == key
+//             int mask = _mm_movemask_epi8(cmp);
+
+//             if (mask != 0) {
+//                 int bit = __builtin_ctz(mask);
+//                 int lane = bit / 4;
+//                 found_idx = i + lane;
+//                 break;
+//             }
+//         }
+//         // Scalar tail
+//         if (found_idx == n) {
+//             for (; i < n; ++i) {
+//                 if (keys[i] == key) {
+//                     found_idx = i;
+//                     break;
+//                 }
+//             }
+//         }
+
+//         if (found_idx < n)
+//             return current->values[found_idx];
+//     }
+
+//     return nullptr;  // not found
+// }
 
 // -------------------------
 // Incremental Insertion: Insert a key and its associated tuple into the tree.
