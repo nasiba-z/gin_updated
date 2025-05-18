@@ -7,3 +7,7 @@
 # Ignore all .csv files
 *.csv
 
+# Ignore all .sh files
+*.sh
+
+
