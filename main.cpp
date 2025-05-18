@@ -80,10 +80,10 @@ void warmUpCache(const std::string& filename) {
 }
 int main() {
      // Record the start time.
-    warmUpCache("part.tbl");
+    warmUpCache("partsf10.tbl");
     auto start = std::chrono::high_resolution_clock::now();
     // 1. Read the database rows from file "part.tbl".
-    vector<Row> database = read_db("part.tbl");
+    vector<Row> database = read_db("partsf10.tbl");
 
     // 2. Transform the database rows into TableRow format.
     vector<TableRow> table;
