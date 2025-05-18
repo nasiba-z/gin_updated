@@ -10,7 +10,7 @@
 
 int main() {
     // Output file to save the results
-    std::ofstream outFile("iteration_results_art_sf1.csv");
+    std::ofstream outFile("iteration_results_art_sf10.csv");
     if (!outFile.is_open()) {
         std::cerr << "Error: Could not open output file!" << std::endl;
         return 1;
