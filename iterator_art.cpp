@@ -10,14 +10,14 @@
 
 int main() {
     // Output file to save the results
-    std::ofstream outFile("iteration_results_art_sf10.csv");
+    std::ofstream outFile("iteration_results_art_sf1.csv");
     if (!outFile.is_open()) {
         std::cerr << "Error: Could not open output file!" << std::endl;
         return 1;
     }
 
     // Write the header for the CSV file
-    outFile << "Iteration,Time_Bulk_Loading,Time_Candidate_Retrieval_Short, Time_Candidate_Retrieval_Medium, Time_Candidate_Retrieval_Long\\n";
+    outFile << "Iteration,Time_Bulk_Loading,Time_Candidate_Retrieval_Short,Time_Candidate_Retrieval_Medium,Time_Candidate_Retrieval_Long\n";
 
     // Loop for 50 iterations
     for (int i = 1; i <= 50; ++i) {
@@ -27,7 +27,7 @@ int main() {
         auto start = std::chrono::high_resolution_clock::now();
 
         // Run the compiled main.exe and redirect its output to a temporary file
-        system("./main> temp_output.txt");
+        system("./main_art> temp_output.txt");
         // End timing
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
