@@ -517,6 +517,11 @@ ARTNode* ART_bulkLoad(const std::vector<std::pair<std::vector<unsigned char>, In
         auto n4 = static_cast<ARTNode4*>(node);
         for (auto b: keysPresent) {
         auto &bucket = partitions[b];
+        // 1) Prefetch the parent‐node slot where we’ll write the child pointer:
+        __builtin_prefetch(&n4->children[n4->count],  /* rw=1 for write */ 1, 2/* locality=1 */);
+  
+        // 2) Prefetch the bucket’s backing data so partition[b] is hot
+        __builtin_prefetch(bucket.data(),  /* rw=0 for read */ 0, /* locality=3 */2);
         auto child  = ART_bulkLoad(bucket, depth+1);
         n4->keys   [n4->count] = b;
         n4->children[n4->count] = child;
@@ -528,6 +533,8 @@ ARTNode* ART_bulkLoad(const std::vector<std::pair<std::vector<unsigned char>, In
         auto n16 = static_cast<ARTNode16*>(node);
         for (auto b: keysPresent) {
         auto &bucket = partitions[b];
+        __builtin_prefetch(&n16->children[n16->count], 1, 1);
+        __builtin_prefetch(bucket.data(), 0, 3);
         auto child  = ART_bulkLoad(bucket, depth+1);
         n16->keys   [n16->count] = b;
         n16->children[n16->count] = child;
@@ -539,6 +546,9 @@ ARTNode* ART_bulkLoad(const std::vector<std::pair<std::vector<unsigned char>, In
         auto n48 = static_cast<ARTNode48*>(node);
         for (auto b: keysPresent) {
         auto &bucket = partitions[b];
+        __builtin_prefetch(&n48->childIndex[b], 1, 1);
+        __builtin_prefetch(&n48->children[n48->count], 1, 1);
+        __builtin_prefetch(bucket.data(), 0, 3);
         auto child  = ART_bulkLoad(bucket, depth+1);
         n48->childIndex[b]      = n48->count;
         n48->children [n48->count] = child;
@@ -550,6 +560,8 @@ ARTNode* ART_bulkLoad(const std::vector<std::pair<std::vector<unsigned char>, In
         auto n256 = static_cast<ARTNode256*>(node);
         for (auto b: keysPresent) {
         auto &bucket = partitions[b];
+        __builtin_prefetch(&n256->children[b], 1, 1);
+        __builtin_prefetch(bucket.data(), 0, 3);
         auto child  = ART_bulkLoad(bucket, depth+1);
         n256->children[b] = child;
         ++n256->count;
