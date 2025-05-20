@@ -10,4 +10,7 @@
 # Ignore all .sh files
 *.sh
 
+# Ignore all .txt files
+*.txt
+
 
