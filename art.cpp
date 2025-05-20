@@ -457,23 +457,23 @@ IndexTuple* ARTNode256::search(const unsigned char* key, int keyLen, int depth) 
 
 // Helper function: Recursively bulk load ART from sorted items.
 ARTNode* ART_bulkLoad(const std::vector<std::pair<std::vector<unsigned char>, IndexTuple*>>& items, int depth) {
-    // Base case: If there are no items, return nullptr.
     if (items.empty())
         return nullptr;
 
-    // If the number of items is small or we've reached the end of the key,
-    // create a leaf-level container.
+    // If we have few items or we've reached the end of the key,
+    // then build a leaf-level container.
     if (items.size() <= LEAF_THRESHOLD || depth >= (int)items[0].first.size()) {
-        // If there's only one item, create and return a single ARTLeaf node.
+        // If there's only one item, return an ARTLeaf.
         if (items.size() == 1) {
             return new ARTLeaf(items[0].first, items[0].second);
         }
-        // Otherwise, create a Node4 to store the items as children.
+        // Otherwise, create a simple inner node (using Node4 for simplicity).
         ARTNode4* node = new ARTNode4();
         // Insert each item as a child leaf.
         for (size_t i = 0; i < items.size(); i++) {
             ARTLeaf* leaf = new ARTLeaf(items[i].first, items[i].second);
-            // Use the byte at the current depth as the separator key.
+            // Always store the separator key from the key at index 'depth'
+            // (instead of only for i > 0).
             unsigned char separator = (depth < items[i].first.size()) ? items[i].first[depth] : 0;
             node->keys[node->count] = separator;
             node->children[node->count] = leaf;
@@ -482,93 +482,74 @@ ARTNode* ART_bulkLoad(const std::vector<std::pair<std::vector<unsigned char>, In
         return node;
     }
 
-    // 1. Partition into 256 buckets (unchanged)
-    std::array<std::vector<std::pair<std::vector<unsigned char>,IndexTuple*>>,256> partitions;
-    for (auto &item : items) {
-        unsigned char b = (depth < (int)item.first.size())
-                        ? item.first[depth]
-                        : 0;
+    // Partition the items by the byte at the current depth.
+    std::vector<std::vector<std::pair<std::vector<unsigned char>, IndexTuple*>>> partitions(256);
+    for (const auto& item : items) {
+        unsigned char b = (depth < (int)item.first.size()) ? item.first[depth] : 0;
         partitions[b].push_back(item);
     }
 
-    // 2. Build a small vector of only the non-empty byte values
+    // Count non-empty partitions.
     int nonEmptyCount = 0;
-    for (int b = 0; b < 256; ++b)
-        if (!partitions[b].empty())
-            ++nonEmptyCount;
-
-    std::vector<unsigned char> keysPresent;
-    keysPresent.reserve(nonEmptyCount);
-    for (int b = 0; b < 256; ++b) {
-        if (!partitions[b].empty())
-            keysPresent.push_back((unsigned char)b);
+    for (int i = 0; i < 256; i++) {
+        if (!partitions[i].empty())
+            nonEmptyCount++;
     }
 
-    // 3. Choose node type using nonEmptyCount
+    // Choose an internal node type based on nonEmptyCount.
     ARTNode* node = nullptr;
-    if      (nonEmptyCount <= 4)  node = new ARTNode4();
-    else if (nonEmptyCount <= 16) node = new ARTNode16();
-    else if (nonEmptyCount <= 48) node = new ARTNode48();
-    else                          node = new ARTNode256();
-
-    // 4. Recurse only over those non-empty buckets
-    switch (node->type) {
-    case NodeType::NODE4: {
-        auto n4 = static_cast<ARTNode4*>(node);
-        for (auto b: keysPresent) {
-        auto &bucket = partitions[b];
-        // 1) Prefetch the parent‐node slot where we’ll write the child pointer:
-        __builtin_prefetch(&n4->children[n4->count],  /* rw=1 for write */ 1, 2/* locality=1 */);
-  
-        // 2) Prefetch the bucket’s backing data so partition[b] is hot
-        __builtin_prefetch(bucket.data(),  /* rw=0 for read */ 0, /* locality=3 */2);
-        auto child  = ART_bulkLoad(bucket, depth+1);
-        n4->keys   [n4->count] = b;
-        n4->children[n4->count] = child;
-        ++n4->count;
-        }
-        break;
-    }
-    case NodeType::NODE16: {
-        auto n16 = static_cast<ARTNode16*>(node);
-        for (auto b: keysPresent) {
-        auto &bucket = partitions[b];
-        __builtin_prefetch(&n16->children[n16->count], 1, 1);
-        __builtin_prefetch(bucket.data(), 0, 3);
-        auto child  = ART_bulkLoad(bucket, depth+1);
-        n16->keys   [n16->count] = b;
-        n16->children[n16->count] = child;
-        ++n16->count;
-        }
-        break;
-    }
-    case NodeType::NODE48: {
-        auto n48 = static_cast<ARTNode48*>(node);
-        for (auto b: keysPresent) {
-        auto &bucket = partitions[b];
-        __builtin_prefetch(&n48->childIndex[b], 1, 1);
-        __builtin_prefetch(&n48->children[n48->count], 1, 1);
-        __builtin_prefetch(bucket.data(), 0, 3);
-        auto child  = ART_bulkLoad(bucket, depth+1);
-        n48->childIndex[b]      = n48->count;
-        n48->children [n48->count] = child;
-        ++n48->count;
-        }
-        break;
-    }
-    case NodeType::NODE256: {
-        auto n256 = static_cast<ARTNode256*>(node);
-        for (auto b: keysPresent) {
-        auto &bucket = partitions[b];
-        __builtin_prefetch(&n256->children[b], 1, 1);
-        __builtin_prefetch(bucket.data(), 0, 3);
-        auto child  = ART_bulkLoad(bucket, depth+1);
-        n256->children[b] = child;
-        ++n256->count;
-        }
-        break;
-    }
+    if (nonEmptyCount <= 4) {
+        node = new ARTNode4();
+    } else if (nonEmptyCount <= 16) {
+        node = new ARTNode16();
+    } else if (nonEmptyCount <= 48) {
+        node = new ARTNode48();
+    } else {
+        node = new ARTNode256();
     }
 
+    // For each possible byte value, if the partition is non-empty, recursively build a child.
+    if (node->type == NodeType::NODE4) {
+        ARTNode4* n4 = static_cast<ARTNode4*>(node);
+        for (int b = 0; b < 256; b++) {
+            if (!partitions[b].empty()) {
+                ARTNode* child = ART_bulkLoad(partitions[b], depth + 1);
+                n4->keys[n4->count] = static_cast<unsigned char>(b);
+                n4->children[n4->count] = child;
+                n4->count++;
+            }
+        }
+    } else if (node->type == NodeType::NODE16) {
+        ARTNode16* n16 = static_cast<ARTNode16*>(node);
+        for (int b = 0; b < 256; b++) {
+            if (!partitions[b].empty()) {
+                ARTNode* child = ART_bulkLoad(partitions[b], depth + 1);
+                n16->keys[n16->count] = static_cast<unsigned char>(b);
+                n16->children[n16->count] = child;
+                n16->count++;
+            }
+        }
+    } else if (node->type == NodeType::NODE48) {
+        ARTNode48* n48 = static_cast<ARTNode48*>(node);
+        // For Node48, iterate over all possible 256 byte values.
+        for (int b = 0; b < 256; b++) {
+            if (!partitions[b].empty()) {
+                ARTNode* child = ART_bulkLoad(partitions[b], depth + 1);
+                n48->childIndex[b] = n48->count;
+                n48->children[n48->count] = child;
+                n48->count++;
+            }
+        }
+    } else if (node->type == NodeType::NODE256) {
+        ARTNode256* n256 = static_cast<ARTNode256*>(node);
+        // In Node256, we use the direct index.
+        for (int b = 0; b < 256; b++) {
+            if (!partitions[b].empty()) {
+                ARTNode* child = ART_bulkLoad(partitions[b], depth + 1);
+                n256->children[b] = child;
+                n256->count++;
+            }
+        }
+    }
     return node;
 }
