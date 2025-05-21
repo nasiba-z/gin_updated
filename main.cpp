@@ -191,170 +191,129 @@ int main() {
     //     cerr << "Failed to open file for writing.\n";
     // }
     
-    // // --- Candidate Retrieval using the Gin Index (via EntryTree search) ---
-    // // Disabled for now. Uncomment the following code to enable candidate retrieval.
-    // // Calculate time for this section only
-    // // short pattern:
-    // string pattern = "%mon%ros%";
-    // // Extract required trigrams from the pattern.
-    // std::vector<Trigram> requiredTrigrams = getRequiredTrigrams(pattern);
+    // --- Candidate Retrieval using the Gin Index (via EntryTree search) ---
+    // Disabled for now. Uncomment the following code to enable candidate retrieval.
+    // Calculate time for this section only
+    // short pattern:
+    string pattern = "%mon%ros%";
+    // Extract required trigrams from the pattern.
+    std::vector<Trigram> requiredTrigrams = getRequiredTrigrams(pattern);
 
-    // vector<vector<TID>> postingLists;
-    // auto start_cr_short = std::chrono::high_resolution_clock::now();
-    // for (const auto &tri : requiredTrigrams) {
-    //     std::cout << tri << " ";
-    //     int32_t key = packTrigram(tri);
-    //     // Use the entry tree search method to get the IndexTuple.
-    //     IndexTuple* tup = entryTree.search(key);
-    //     if (tup != nullptr) {
-    //         vector<TID> plist = getPostingList(tup);
-    //         postingLists.push_back(plist);
-    //     } else {
-    //         // If any required trigram is missing, no row can match.
-    //         postingLists.clear();
-    //         break;
-    //     }
-    // }
-    // auto end_cr_short = std::chrono::high_resolution_clock::now();
-    // //print the elapsed time for candidate retrieval.
-    // std::chrono::duration<double> elapsed_cr = end_cr_short - start_cr_short;
-    // std::cout << "Candidate retrieval execution time for short predicate: " << elapsed_cr.count() << " seconds." << std::endl;
-    // // Intersect all posting lists to get candidate TIDs.
-    // vector<TID> candidateTIDs = intersectPostingLists(postingLists);
-    //    std::vector<TID> finalTIDs;
-    // for (const TID& tid : candidateTIDs)
-    // {   
-    //     // std::cout << tid.rowId << " ";
-    //     std::string text = getRowText(tid);   // fetch p_name, etc.
-    //     // Check if the text matches the pattern and if the literals appear in order.
-    //     // cout << "Checking text: " << text << "\n";
+    vector<vector<TID>> postingLists;
+    auto start_cr_short = std::chrono::high_resolution_clock::now();
+    for (const auto &tri : requiredTrigrams) {
+        std::cout << tri << " ";
+        int32_t key = packTrigram(tri);
+        // Use the entry tree search method to get the IndexTuple.
+        IndexTuple* tup = entryTree.search(key);
+        if (tup != nullptr) {
+            vector<TID> plist = getPostingList(tup);
+            postingLists.push_back(plist);
+        } else {
+            // If any required trigram is missing, no row can match.
+            postingLists.clear();
+            break;
+        }
+    }
+    
+    // Intersect all posting lists to get candidate TIDs.
+    vector<TID> candidateTIDs = intersectPostingLists(postingLists);
+       std::vector<TID> finalTIDs;
+    for (const TID& tid : candidateTIDs)
+    {   
+        // std::cout << tid.rowId << " ";
+        std::string text = getRowText(tid);   // fetch p_name, etc.
+        // Check if the text matches the pattern and if the literals appear in order.
+        // cout << "Checking text: " << text << "\n";
 
-    //     if (literalsAppearInOrder(text, requiredTrigrams))
-    //         finalTIDs.push_back(tid);
-    // }
-    // std::cout << "Number of rows matching pattern \"" << pattern << "\": " << finalTIDs.size() << std::endl;
+        if (literalsAppearInOrder(text, requiredTrigrams))
+            finalTIDs.push_back(tid);
+    }
+    std::cout << "Number of rows matching pattern \"" << pattern << "\": " << finalTIDs.size() << std::endl;
+    auto end_cr_short = std::chrono::high_resolution_clock::now();
+    //print the elapsed time for candidate retrieval.
+    std::chrono::duration<double> elapsed_cr = end_cr_short - start_cr_short;
+    std::cout << "Candidate retrieval execution time for short predicate: " << elapsed_cr.count() << " seconds." << std::endl;
 
+    // medium pattern:
+    string medium_pattern = "%chocolate%mon%";
+    // Extract required trigrams from the pattern.
+    std::vector<Trigram> requiredTrigrams_med = getRequiredTrigrams(medium_pattern);
 
-    // // medium pattern:
-    // string medium_pattern = "%chocolate%mon%";
-    // // Extract required trigrams from the pattern.
-    // std::vector<Trigram> requiredTrigrams_med = getRequiredTrigrams(medium_pattern);
+    vector<vector<TID>> postingLists_medium;
+    auto start_cr_medium = std::chrono::high_resolution_clock::now();
+    for (const auto &tri : requiredTrigrams_med) {
+        int32_t key = packTrigram(tri);
+        // Use the entry tree search method to get the IndexTuple.
+        IndexTuple* tup = entryTree.search(key);
+        if (tup != nullptr) {
+            vector<TID> plist = getPostingList(tup);
+            postingLists_medium.push_back(plist);
+        } else {
+            // If any required trigram is missing, no row can match.
+            postingLists_medium.clear();
+            break;
+        }
+    }
+    // Intersect all posting lists to get candidate TIDs.
+    vector<TID> candidateTIDs_med = intersectPostingLists(postingLists_medium);
+       std::vector<TID> finalTIDs_med;
+    for (const TID& tid : candidateTIDs_med)
+    {   
+        // std::cout << tid.rowId << " ";
+        std::string text = getRowText(tid);   // fetch p_name, etc.
+        // Check if the text matches the pattern and if the literals appear in order.
+        // cout << "Checking text: " << text << "\n";
 
-    // vector<vector<TID>> postingLists_medium;
-    // auto start_cr_medium = std::chrono::high_resolution_clock::now();
-    // for (const auto &tri : requiredTrigrams_med) {
-    //     int32_t key = packTrigram(tri);
-    //     // Use the entry tree search method to get the IndexTuple.
-    //     IndexTuple* tup = entryTree.search(key);
-    //     if (tup != nullptr) {
-    //         vector<TID> plist = getPostingList(tup);
-    //         postingLists_medium.push_back(plist);
-    //     } else {
-    //         // If any required trigram is missing, no row can match.
-    //         postingLists_medium.clear();
-    //         break;
-    //     }
-    // }
-    // auto end_cr_medium = std::chrono::high_resolution_clock::now();
-    // //print the elapsed time for candidate retrieval.
-    // std::chrono::duration<double> elapsed_cr_medium = end_cr_medium - start_cr_medium;
-    // std::cout << "Candidate retrieval execution time for medium predicate: " << elapsed_cr_medium.count() << " seconds." << std::endl;
-    // // Intersect all posting lists to get candidate TIDs.
-    // vector<TID> candidateTIDs_med = intersectPostingLists(postingLists_medium);
-    //    std::vector<TID> finalTIDs_med;
-    // for (const TID& tid : candidateTIDs_med)
-    // {   
-    //     // std::cout << tid.rowId << " ";
-    //     std::string text = getRowText(tid);   // fetch p_name, etc.
-    //     // Check if the text matches the pattern and if the literals appear in order.
-    //     // cout << "Checking text: " << text << "\n";
+        if (literalsAppearInOrder(text, requiredTrigrams_med))
+            finalTIDs_med.push_back(tid);
+    }
+    std::cout << "Number of rows matching pattern \"" << medium_pattern << "\": " << finalTIDs_med.size() << std::endl;
+    auto end_cr_medium = std::chrono::high_resolution_clock::now();
+    //print the elapsed time for candidate retrieval.
+    std::chrono::duration<double> elapsed_cr_medium = end_cr_medium - start_cr_medium;
+    std::cout << "Candidate retrieval execution time for medium predicate: " << elapsed_cr_medium.count() << " seconds." << std::endl;
+ 
+    // long pattern:
+    string long_pattern = "%lavender%almond%";
+    // Extract required trigrams from the pattern.
+    std::vector<Trigram> requiredTrigrams_long = getRequiredTrigrams(long_pattern);
 
-    //     if (literalsAppearInOrder(text, requiredTrigrams_med))
-    //         finalTIDs_med.push_back(tid);
-    // }
-    // std::cout << "Number of rows matching pattern \"" << medium_pattern << "\": " << finalTIDs_med.size() << std::endl;
+    vector<vector<TID>> postingLists_long;
+    auto start_cr_long = std::chrono::high_resolution_clock::now();
+    for (const auto &tri : requiredTrigrams_long) {
+        int32_t key = packTrigram(tri);
+        // Use the entry tree search method to get the IndexTuple.
+        IndexTuple* tup = entryTree.search(key);
+        if (tup != nullptr) {
+            vector<TID> plist = getPostingList(tup);
+            postingLists_long.push_back(plist);
+        } else {
+            // If any required trigram is missing, no row can match.
+            postingLists_long.clear();
+            break;
+        }
+    }
+     // Intersect all posting lists to get candidate TIDs.
+    vector<TID> candidateTIDs_long = intersectPostingLists(postingLists_long);
+       std::vector<TID> finalTIDs_long;
+    for (const TID& tid : candidateTIDs_long)
+    {   
+        // std::cout << tid.rowId << " ";
+        std::string text = getRowText(tid);   // fetch p_name, etc.
+        // Check if the text matches the pattern and if the literals appear in order.
+        // cout << "Checking text: " << text << "\n";
 
-    // // long pattern:
-    // string long_pattern = "%lavender%almond%";
-    // // Extract required trigrams from the pattern.
-    // std::vector<Trigram> requiredTrigrams_long = getRequiredTrigrams(long_pattern);
-
-    // vector<vector<TID>> postingLists_long;
-    // auto start_cr_long = std::chrono::high_resolution_clock::now();
-    // for (const auto &tri : requiredTrigrams_long) {
-    //     int32_t key = packTrigram(tri);
-    //     // Use the entry tree search method to get the IndexTuple.
-    //     IndexTuple* tup = entryTree.search(key);
-    //     if (tup != nullptr) {
-    //         vector<TID> plist = getPostingList(tup);
-    //         postingLists_long.push_back(plist);
-    //     } else {
-    //         // If any required trigram is missing, no row can match.
-    //         postingLists_long.clear();
-    //         break;
-    //     }
-    // }
-    // auto end_cr_long = std::chrono::high_resolution_clock::now();
-    // //print the elapsed time for candidate retrieval.
-    // std::chrono::duration<double> elapsed_cr_long = end_cr_long - start_cr_long;
-    // std::cout << "Candidate retrieval execution time for long predicate: " << elapsed_cr_long.count() << " seconds." << std::endl;
-    // // Intersect all posting lists to get candidate TIDs.
-    // vector<TID> candidateTIDs_long = intersectPostingLists(postingLists_long);
-    //    std::vector<TID> finalTIDs_long;
-    // for (const TID& tid : candidateTIDs_long)
-    // {   
-    //     // std::cout << tid.rowId << " ";
-    //     std::string text = getRowText(tid);   // fetch p_name, etc.
-    //     // Check if the text matches the pattern and if the literals appear in order.
-    //     // cout << "Checking text: " << text << "\n";
-
-    //     if (literalsAppearInOrder(text, requiredTrigrams_long))
-    //         finalTIDs_long.push_back(tid);
-    // }
+        if (literalsAppearInOrder(text, requiredTrigrams_long))
+            finalTIDs_long.push_back(tid);
+    }
 
 
-    // std::cout << "Number of rows matching pattern \"" << long_pattern << "\": " << finalTIDs_long.size() << std::endl;
-   
-    // // long pattern no2:
-    // string long_pattern2 = "%lavender%almond%";
-    // // Extract required trigrams from the pattern.
-    // std::vector<Trigram> requiredTrigrams_long2 = getRequiredTrigrams(long_pattern2);
-
-    // vector<vector<TID>> postingLists_long2;
-    // auto start_cr_long2 = std::chrono::high_resolution_clock::now();
-    // for (const auto &tri : requiredTrigrams_long2) {
-    //     int32_t key = packTrigram(tri);
-    //     // Use the entry tree search method to get the IndexTuple.
-    //     IndexTuple* tup = entryTree.search(key);
-    //     if (tup != nullptr) {
-    //         vector<TID> plist = getPostingList(tup);
-    //         postingLists_long2.push_back(plist);
-    //     } else {
-    //         // If any required trigram is missing, no row can match.
-    //         postingLists_long2.clear();
-    //         break;
-    //     }
-    // }
-    // auto end_cr_long2 = std::chrono::high_resolution_clock::now();
-    // //print the elapsed time for candidate retrieval.
-    // std::chrono::duration<double> elapsed_cr_long2 = end_cr_long2 - start_cr_long2;
-    // std::cout << "Candidate retrieval execution time for long predicate2: " << elapsed_cr_long2.count() << " seconds." << std::endl;
-    // // Intersect all posting lists to get candidate TIDs.
-    // vector<TID> candidateTIDs_long2 = intersectPostingLists(postingLists_long2);
-    //    std::vector<TID> finalTIDs_long2;
-    // for (const TID& tid : candidateTIDs_long2)
-    // {   
-    //     // std::cout << tid.rowId << " ";
-    //     std::string text = getRowText(tid);   // fetch p_name, etc.
-    //     // Check if the text matches the pattern and if the literals appear in order.
-    //     // cout << "Checking text: " << text << "\n";
-
-    //     if (literalsAppearInOrder(text, requiredTrigrams_long))
-    //         finalTIDs_long2.push_back(tid);
-    // }
-
-
-    // std::cout << "Number of rows matching pattern \"" << long_pattern2 << "\": " << finalTIDs_long2.size() << std::endl;
-   
+    std::cout << "Number of rows matching pattern \"" << long_pattern << "\": " << finalTIDs_long.size() << std::endl;
+    auto end_cr_long = std::chrono::high_resolution_clock::now();
+    //print the elapsed time for candidate retrieval.
+    std::chrono::duration<double> elapsed_cr_long = end_cr_long - start_cr_long;
+    std::cout << "Candidate retrieval execution time for long predicate: " << elapsed_cr_long.count() << " seconds." << std::endl;
+  
     return 0;
 }
