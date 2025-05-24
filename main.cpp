@@ -81,7 +81,6 @@ void warmUpCache(const std::string& filename) {
 int main() {
      // Record the start time.
     warmUpCache("partsf10.tbl");
-    auto start = std::chrono::high_resolution_clock::now();
     // 1. Read the database rows from file "part.tbl".
     vector<Row> database = read_db("partsf10.tbl");
 
@@ -171,7 +170,8 @@ int main() {
     // for large posting lists) is one of the key design decisions in the GIN index that allows it to be 
     // both efficient and scalable.
     
-   
+    auto start = std::chrono::high_resolution_clock::now();
+
     EntryTree entryTree;
     entryTree.bulkLoad(sortedTuples);
     // Record the end time.

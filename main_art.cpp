@@ -201,7 +201,6 @@ void warmUpCache(const std::string& filename) {
 }
 int main() {
     warmUpCache("partsf10.tbl");
-    auto start = std::chrono::high_resolution_clock::now();
     // 1. Read the database rows from file "part.tbl".
     vector<Row> database = read_db("partsf10.tbl");
 
@@ -225,19 +224,7 @@ int main() {
       
     }
     
-    // // Sort trigrams by their counts in descending order and print them.
-    // vector<pair<string, size_t>> trigramCounts;
-    // for (const auto& entry : postingMap) {
-    //     trigramCounts.emplace_back(entry.first, entry.second.size());
-    // }
-    // sort(trigramCounts.begin(), trigramCounts.end(), [](const auto& a, const auto& b) {
-    //     return a.second > b.second;
-    // });
-
-    // for (const auto& entry : trigramCounts) {
-    //     cout << "Trigram: " << entry.first << ", Count: " << entry.second << endl;
-    // }
-
+    
     // cout << "Number of unique trigrams: " << postingMap.size() << endl;
     GinState state(true, 256); // Reduced maxItemSize for testing posting trees.
 
@@ -278,6 +265,8 @@ int main() {
     // 6. Bulk-load the ART tree using ART_bulkLoad.
     // The resulting ART tree maps each trigram (as a byte vector)
     // to the corresponding IndexTuple pointer (which holds the posting list/tree).
+    auto start = std::chrono::high_resolution_clock::now();
+
     ARTNode* artRoot = ART_bulkLoad(artItems, 0);
     // Record the end time.
     auto end = std::chrono::high_resolution_clock::now();
