@@ -3,3 +3,14 @@
 
 # Ignore all .exe files
 *.exe
+
+# Ignore all .csv files
+*.csv
+
+# Ignore all .sh files
+*.sh
+
+# Ignore all .txt files
+*.txt
+
+
